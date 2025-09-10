@@ -1,10 +1,14 @@
+# test llama codegen with one example
+
 import sentence_embedding as st
 from typing import List, Optional
 import fire
 from llama import Dialog, Llama
 
-query = '''You are now given some HLS pragma insertion assistants
-assistant 1: int ABij = 0;
+query = '''You are given some HLS pragma insertion assistants.
+
+assistant 1:
+int ABij = 0;
 product: for(int k = 0; k < M; ++k) {
 ABij += A[i][k] * B[k][j];
 }
@@ -20,17 +24,24 @@ Matrix multiplication is a fundamental operation in numerical algorithms. Comput
 product between large matrices can take a significant amount of time. Therefore, it is critically
 important part of many of problems in numerical computing. Fundamentally, matrices repre-
 sent linear transforms between vector spaces; matrix multiplication provides way to compose the
-linear transforms. Applications include linearly changing coordinates (e.g., translation, rotation, assistant 2: [3] Hassan M. Ahmed, Jean-Marc Delosme, and Martin Morf. Highly concurrent computing
+linear transforms. Applications include linearly changing coordinates (e.g., translation, rotation, 
+
+assistant 2: 
+[3] Hassan M. Ahmed, Jean-Marc Delosme, and Martin Morf. Highly concurrent computing
 structures for matrix arithmetic and signal processing. IEEE Computer, 15(1):65-82, 1982.
 [4] Raymond J. Andraka. Building a high performance bit-serial processor in an FPGA. In
 Proceedings of Design SuperCon, volume 96, pages 1-5, 1996.
-[5] Oriol Arcas-Abella et al. An empirical evaluation of high-level synthesis languages and tools, assistant 3: for (i = N - 1; i > 0; i--) {
+[5] Oriol Arcas-Abella et al. An empirical evaluation of high-level synthesis languages and tools, 
+
+assistant 3: 
+for (i = N - 1; i > 0; i--) {
 shift reg[i] = shift reg[i - 1];
 }
 shift reg[0] = x;
 acc = 0;
 MAC:
- Now try your best to Optimize the following code through inserting pragma hls lines
+
+Optimize the following code by inserting pragma HLS lines.
 
 void kernel_bicg(int m,int n,float A[124][116],float s[116],float q[124],float p[116],float r[124])
 {

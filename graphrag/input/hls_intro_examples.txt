@@ -1,0 +1,3485 @@
+
+================================================================================
+Example: Array/array_partition_block_cyclic
+================================================================================
+--- README ---
+This is a simple example of matrix multiplication (Row x Col) to demonstrate block and cyclic array partitioning pragma in HLS
+
+Running the Design using Vitis HLS (edit run_hls.tcl to set $hls_exec and enable specific run steps)
+=========================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+Running the design using Vitis v++ and vitis-run commands
+=====================================================
+./run_vitis_commandline.sh
+
+Running the design using python script
+=====================================================
+vitis -s run.py
+
+--- KERNEL FILE: matmul_partition.cpp ---
+// Includes
+#include "matmul_partition.h"
+
+// TRIPCOUNT identifier
+const unsigned int c_dim = MAX_DIM;
+
+void matmul_partition(int* in1, int* in2, int* out_r, int dim, int rep_count) { // Matrix Dimension. Assuming Square Matrix
+#pragma HLS INTERFACE m_axi port = in1 depth = 256
+#pragma HLS INTERFACE m_axi port = in2 depth = 256
+#pragma HLS INTERFACE m_axi port = out_r depth = 256
+
+    int A[MAX_DIM * MAX_DIM];
+    int B[MAX_DIM * MAX_DIM];
+    int C[MAX_DIM * MAX_DIM];
+// Cyclic Partition for A as matrix multiplication needs row-wise parallel
+// access
+#pragma HLS ARRAY_PARTITION variable = A dim = 1 cyclic factor = 16
+// Block Partition for B as matrix multiplication needs column-wise parallel
+// access
+#pragma HLS ARRAY_PARTITION variable = B dim = 1 block factor = 16
+
+// As A and B Matrix are partitioned with the factor of MAX_DIM, so to get
+// parallel row/column access, input square matrix[dimXdim] should be written
+// into local Array in MATRIX[MAX_DIM * MAX_DIM] format
+
+// Burst read for matrix A
+// Auto-pipeline is going to apply pipeline to these loops
+readA:
+    for (int itr = 0, i = 0, j = 0; itr < dim * dim; itr++, j++) {
+#pragma HLS LOOP_TRIPCOUNT min = c_dim* c_dim max = c_dim * c_dim
+        if (j == dim) {
+            j = 0;
+            i++;
+        }
+        A[i * MAX_DIM + j] = in1[itr];
+    }
+
+// Burst read for matrix B
+readB:
+    for (int itr = 0, i = 0, j = 0; itr < dim * dim; itr++, j++) {
+#pragma HLS LOOP_TRIPCOUNT min = c_dim* c_dim max = c_dim * c_dim
+        if (j == dim) {
+            j = 0;
+            i++;
+        }
+        B[i * MAX_DIM + j] = in2[itr];
+    }
+
+loop2:
+    for (int x = 0; x < rep_count; x++) {
+#pragma HLS LOOP_TRIPCOUNT min = 1 max = 1
+    lreorder1:
+        for (int i = 0; i < dim; i++) {
+#pragma HLS LOOP_TRIPCOUNT min = c_dim max = c_dim
+        // As A and B are partition correctly so loop pipelining is applied
+        // at 2nd level loop and which will eventually unroll the lower loop
+        lreorder2:
+            for (int j = 0; j < dim; j++) {
+#pragma HLS LOOP_TRIPCOUNT min = c_dim max = c_dim
+                int result = 0;
+            lreorder3:
+                for (int k = 0; k < MAX_DIM; k++) {
+                    //#pragma HLS LOOP_TRIPCOUNT min = c_dim max = c_dim
+                    result += A[i * MAX_DIM + k] * B[k * MAX_DIM + j];
+                }
+                C[i * MAX_DIM + j] = result;
+            }
+        }
+    }
+
+// Burst write from output matrices to global memory
+// Burst write from matrix C
+writeC:
+    for (int itr = 0, i = 0, j = 0; itr < dim * dim; itr++, j++) {
+#pragma HLS LOOP_TRIPCOUNT min = c_dim* c_dim max = c_dim * c_dim
+        if (j == dim) {
+            j = 0;
+            i++;
+        }
+        out_r[itr] = C[i * MAX_DIM + j];
+    }
+}
+
+
+================================================================================
+Example: Array/array_partition_complete
+================================================================================
+--- README ---
+This is a simple example of matrix multiplication (Row x Col) to demonstrate complete array partitioning pragma in HLS
+
+Running the Design using Vitis HLS (edit run_hls.tcl to set $hls_exec and enable specific run steps)
+=========================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+Running the design using Vitis v++ and vitis-run commands
+=====================================================
+./run_vitis_commandline.sh
+
+Running the design using python script
+=====================================================
+vitis -s run.py
+
+--- KERNEL FILE: matmul_partition.cpp ---
+// Includes
+#include "matmul_partition.h"
+
+// TRIPCOUNT identifiers
+const unsigned int c_dim = MAX_SIZE;
+
+void matmul_partition(int* in1, int* in2, int* out_r, int size, int rep_count) {
+#pragma HLS INTERFACE m_axi port = in1 depth = 256
+#pragma HLS INTERFACE m_axi port = in2 depth = 256
+#pragma HLS INTERFACE m_axi port = out_r depth = 256
+
+    // Local buffers to hold input data
+    int A[MAX_SIZE][MAX_SIZE];
+    int B[MAX_SIZE][MAX_SIZE];
+    int C[MAX_SIZE][MAX_SIZE];
+    int temp_sum[MAX_SIZE];
+
+// partitioning Array B and C
+#pragma HLS ARRAY_PARTITION variable = B dim = 2 complete
+#pragma HLS ARRAY_PARTITION variable = C dim = 2 complete
+#pragma HLS ARRAY_PARTITION variable = temp_sum dim = 1 complete
+
+// Read data from global memory and write into local buffer for in1
+read_A:
+    for (int itr = 0, i = 0, j = 0; itr < size * size; itr++, j++) {
+#pragma HLS LOOP_TRIPCOUNT min = c_dim* c_dim max = c_dim * c_dim
+        if (j == size) {
+            j = 0;
+            i++;
+        }
+        A[i][j] = in1[itr];
+    }
+
+// Read data from global memory and write into local buffer for in2
+read_B:
+    for (int itr = 0, i = 0, j = 0; itr < size * size; itr++, j++) {
+#pragma HLS LOOP_TRIPCOUNT min = c_dim* c_dim max = c_dim * c_dim
+        if (j == size) {
+            j = 0;
+            i++;
+        }
+        B[i][j] = in2[itr];
+    }
+
+// Calculate matrix multiplication using local data buffer based on input size,
+// and write results into local buffer for out
+loop_count:
+    for (int i = 0; i < rep_count; i++) {
+    arraypart1:
+        for (int row = 0; row < size; row++) {
+#pragma HLS LOOP_TRIPCOUNT min = c_dim max = c_dim
+        arraypart2:
+            for (int col = 0; col < size; col++) {
+#pragma HLS LOOP_TRIPCOUNT min = c_dim max = c_dim
+            arraypart3:
+                for (int j = 0; j < MAX_SIZE; j++) {
+#pragma HLS LOOP_TRIPCOUNT min = c_dim max = c_dim
+                    int result = (col == 0) ? 0 : temp_sum[j];
+                    result += A[row][col] * B[col][j];
+                    temp_sum[j] = result;
+                    if (col == size - 1) C[row][j] = result;
+                }
+            }
+        }
+    }
+
+// Write results from local buffer to global memory for out
+writeC:
+    for (int itr = 0, i = 0, j = 0; itr < size * size; itr++, j++) {
+#pragma HLS LOOP_TRIPCOUNT min = c_dim* c_dim max = c_dim * c_dim
+        if (j == size) {
+            j = 0;
+            i++;
+        }
+        out_r[itr] = C[i][j];
+    }
+}
+
+
+================================================================================
+Example: Interface/Aggregation_Disaggregation/aggregation_of_m_axi_ports
+================================================================================
+--- README ---
+In this simple example, the size of the m_axi interface port "arr" is 3 bytes (or 24 bits) but due to the 
+specification of the aggregate pragma, the size of the port will be aligned to 4 bytes (or 32 bits) as this 
+is the closest power of 2. 
+
+Running the Design (edit run_hls.tcl to set $hls_exec and enable specific run steps)
+=========================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+Vitis HLS will issue the following message in the log file:
+
+INFO: [HLS 214-241] Aggregating maxi variable 'arr' with compact=none mode in 32-bits (example.cpp:19:0)
+
+Note that the above message is only issued if the pragma is defined. But even without the pragma definition, the Vitis HLS compiler will aggregate and pad the interface port arr to 4 bytes as it is an AXI interface port.
+
+--- KERNEL FILE: example.cpp ---
+#include "example.h"
+
+int dut(A* arr) {
+#pragma HLS interface m_axi port = arr depth = 10
+#pragma HLS interface s_axilite port = arr
+#pragma HLS aggregate variable = arr compact = auto
+    int sum = 0;
+    for (unsigned i = 0; i < N; i++) {
+        auto tmp = arr[i];
+        sum += tmp.foo + tmp.bar;
+    }
+    return sum;
+}
+
+
+================================================================================
+Example: Interface/Aggregation_Disaggregation/aggregation_of_nested_structs
+================================================================================
+--- README ---
+In this example, the aggregation algorithm will create a port of size
+104 bits for ports a, and c as the compact=byte option was specified
+in the aggregate pragma but the compact=bit default option is used for
+port b and its packed size will be 97 bits. The nested structures S
+and T are aggregated to encompass three 32 bit member variables (p, m,
+and n) and one bit/byte member variable (o).
+
+Note that this example uses the default flow target setting of Vivado
+IP to illustrate the aggregation behavior. In Vitis kernel flow, port
+b will be automatically inferred as an m_axi port and will not allow
+the compact=bit setting.
+
+Running the Design (edit run_hls.tcl to set $hls_exec and enable specific run steps)
+=========================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+Vitis HLS will issue the following message in the log file:
+
+INFO: [HLS 214-241] Aggregating bram variable 'b' with compact=bit mode in 97-bits (example.cpp:19:0)
+INFO: [HLS 214-241] Aggregating bram variable 'a' with compact=byte mode in 104-bits (example.cpp:19:0)
+INFO: [HLS 214-241] Aggregating bram variable 'c' with compact=byte mode in 104-bits (example.cpp:19:0)
+
+--- KERNEL FILE: example.cpp ---
+#include "example.h"
+
+void top(S a[N], S b[N], S c[N]) {
+
+#pragma HLS interface bram port = c
+#pragma HLS interface ap_memory port = a
+#pragma HLS aggregate variable = a compact = byte
+#pragma HLS aggregate variable = c compact = byte
+
+top_label0:
+    for (int i = 0; i < N; i++) {
+#pragma HLS PIPELINE II = 3
+        c[i].q.m = a[i].q.m + b[i].q.m;
+        c[i].q.n = a[i].q.n - b[i].q.n;
+        c[i].q.o = a[i].q.o || b[i].q.o;
+        c[i].p = a[i].q.n;
+    }
+}
+
+
+================================================================================
+Example: Interface/Aggregation_Disaggregation/aggregation_of_struct
+================================================================================
+--- README ---
+In this simple example, the aggregation algorithm will create a port
+of size 119 bits for port arr (which is mapped to ap_fifo which will
+create a streaming interface). The array "myArr" will take 12 bytes (or
+96 bits) and the element "length" will take 23 bits for a total of 119
+bits.
+
+Running the Design (edit run_hls.tcl to set $hls_exec and enable specific run steps)
+=========================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+Vitis HLS will issue the following message in the log file:
+
+INFO: [HLS 214-241] Aggregating fifo (array-to-stream) variable 'arr' with compact=bit mode in 119-bits (example.cpp:19:0)
+
+--- KERNEL FILE: example.cpp ---
+#include "example.h"
+
+int dut(A arr[N]) {
+#pragma HLS interface ap_fifo port = arr
+#pragma HLS aggregate variable = arr
+    int sum = 0;
+    for (unsigned i = 0; i < N; i++) {
+        auto tmp = arr[i];
+        sum += tmp.foo[0] + tmp.foo[1] + tmp.foo[2] + tmp.bar;
+    }
+    return sum;
+}
+
+
+================================================================================
+Example: Interface/Aggregation_Disaggregation/auto_disaggregation_of_struct
+================================================================================
+--- README ---
+Using a hls::stream object inside a structure that is used in the
+interface will cause the struct port to be automatically disaggregated
+by the Vitis HLS compiler. The generated RTL interface will contain
+separate RTL ports for the hls::stream object s_in (named d_s_in_*)
+and separate RTL ports for the array arr (named d_arr_*).
+
+Running the Design (edit run_hls.tcl to set $hls_exec and enable specific run steps)
+=========================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+Vitis HLS will issue the following messages in the log file:
+
+INFO: [HLS 214-210] Disaggregating variable 'd'
+INFO: [HLS 214-241] Aggregating fifo (hls::stream) variable 'd_s_in' with compact=bit mode in 32-bits
+
+--- KERNEL FILE: example.cpp ---
+#include "example.h"
+
+long dut(struct A& d) {
+    long sum = 0;
+    while (!d.s_in.empty())
+        sum += d.s_in.read();
+    for (unsigned i = 0; i < N; i++)
+        sum += d.arr[i];
+    return sum;
+}
+
+
+================================================================================
+Example: Interface/Aggregation_Disaggregation/disaggregation_of_axis_port
+================================================================================
+--- README ---
+In this disaggregation example, a struct port is mapped to an AXI
+stream and then disaggregated causing the Vitis HLS compiler to create
+two AXI stream ports - one for each member (c and i) of the struct A. 
+
+Running the Design (edit run_hls.tcl to set $hls_exec and enable specific run steps)
+=========================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+Vitis HLS will issue the following message in the log file:
+
+INFO: [HLS 214-210] Disaggregating variable 'in' (example.cpp:19:0)
+INFO: [HLS 214-210] Disaggregating variable 'out' (example.cpp:19:0)
+
+--- KERNEL FILE: example.cpp ---
+#include "example.h"
+
+void dut(A in[N], A out[N]) {
+#pragma HLS interface axis port = in
+#pragma HLS interface axis port = out
+#pragma HLS disaggregate variable = in
+#pragma HLS disaggregate variable = out
+    int sum = 0;
+    for (unsigned i = 0; i < N; i++) {
+        out[i].c = in[i].c;
+        out[i].i = in[i].i;
+    }
+}
+
+
+================================================================================
+Example: Interface/Aggregation_Disaggregation/struct_ii_issue
+================================================================================
+--- README ---
+This example illustrates the effect of misaligned data in the interface. Struct A defined in example.h has a 
+size of 192 bits / 24 Bytes. As the port is defined as m_axi, Vitis HLS will pad this field to the closest 
+power of 2 - which is 256 bits (or 32 bytes). This causes a mismatch in the software and hardware sizes and
+results in II violations in the two loops that read and write to the m_axi interfaces.
+
+Edit example.h to uncomment the line that sizes the struct to a power of 2. Rerun and observe that the II
+violations are no longer there as the interfaces are properly sized and aligned. 
+
+Running the Design (edit run_hls.tcl to set $hls_exec and enable specific run steps)
+=========================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+--- KERNEL FILE: example.cpp ---
+#include "example.h"
+
+void read(A* a_in, A buf_out[NUM]) {
+READ:
+    for (int i = 0; i < NUM; i++) {
+        buf_out[i] = a_in[i];
+    }
+}
+
+void compute(A buf_in[NUM], A buf_out[NUM], int size) {
+COMPUTE:
+    for (int j = 0; j < NUM; j++) {
+        buf_out[j].s_1 = buf_in[j].s_1 + size;
+        buf_out[j].s_2 = buf_in[j].s_2;
+        buf_out[j].s_3 = buf_in[j].s_3;
+        buf_out[j].s_4 = buf_in[j].s_4;
+        buf_out[j].s_5 = buf_in[j].s_5;
+        buf_out[j].s_6 = buf_in[j].s_6 % 2;
+    }
+}
+
+void write(A buf_in[NUM], A* a_out) {
+WRITE:
+    for (int k = 0; k < NUM; k++) {
+        a_out[k] = buf_in[k];
+    }
+}
+
+void dut(A a_in[NUM], A a_out[NUM], int size) {
+#pragma HLS INTERFACE m_axi port = a_in bundle = gmem0
+#pragma HLS INTERFACE m_axi port = a_out bundle = gmem1
+    A buffer_in[NUM];
+    A buffer_out[NUM];
+
+#pragma HLS dataflow
+    read(a_in, buffer_in);
+    compute(buffer_in, buffer_out, size);
+    write(buffer_out, a_out);
+}
+
+
+================================================================================
+Example: Interface/Memory/burst_rw
+================================================================================
+--- README ---
+This is simple example of using AXI4-master interface for burst read and write in Vitis HLS
+
+Running the Design using Vitis HLS (edit run_hls.tcl to set $hls_exec and enable specific run steps)
+=========================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+Run the design using Vitis v++ and vitis-run commands
+=====================================================
+./run_vitis_commandline.sh
+
+--- KERNEL FILE: vadd.cpp ---
+/*******************************************************************************
+Description:
+    HLS Example using AXI4-master interface for burst read and write
+*******************************************************************************/
+
+// Includes
+#include <stdio.h>
+#include <string.h>
+#include "vadd.h"
+
+// TRIPCOUNT identifiers
+const unsigned int c_size_min = 1;
+const unsigned int c_size_max = BURSTBUFFERSIZE;
+const unsigned int c_chunk_sz = DATA_SIZE;
+
+void vadd(int* a, int size, int inc_value) {
+// Map pointer a to AXI4-master interface for global memory access
+#pragma HLS INTERFACE m_axi port = a offset = slave bundle = gmem max_read_burst_length = 256 max_write_burst_length = 256 depth = 2048
+// We also need to map a and return to a bundled axilite slave interface
+#pragma HLS INTERFACE s_axilite port = a
+#pragma HLS INTERFACE s_axilite port = size
+#pragma HLS INTERFACE s_axilite port = inc_value
+#pragma HLS INTERFACE s_axilite port = return
+
+    int burstbuffer[BURSTBUFFERSIZE];
+
+read_buf:
+    // Per iteration of this loop perform BURSTBUFFERSIZE vector addition
+    for (int i = 0; i < size; i += BURSTBUFFERSIZE) {
+#pragma HLS LOOP_TRIPCOUNT min = c_size_min* c_size_min max = c_chunk_sz * c_chunk_sz / (c_size_max * c_size_max)
+        int chunk_size = BURSTBUFFERSIZE;
+        // boundary checks
+        if ((i + BURSTBUFFERSIZE) > size) chunk_size = size - i;
+        // burst read
+        // Auto-pipeline is going to apply pipeline to these loops
+        for (int j = 0; j < chunk_size; j++) {
+// As the outer loop is not a perfect loop
+#pragma HLS loop_flatten off
+#pragma HLS LOOP_TRIPCOUNT min = c_size_min max = c_size_max
+            burstbuffer[j] = a[i + j];
+        }
+
+    // calculate and write results to global memory, the sequential write in a for
+    // loop can be inferred to a memory burst access
+    calc_write:
+        for (int j = 0; j < chunk_size; j++) {
+#pragma HLS LOOP_TRIPCOUNT min = c_size_max max = c_chunk_sz
+            burstbuffer[j] = burstbuffer[j] + inc_value;
+            a[i + j] = burstbuffer[j];
+        }
+    }
+}
+
+
+================================================================================
+Example: Interface/Memory/cache/maxi_cache_conditional
+================================================================================
+--- README ---
+This example illustrates case of usefulness of cases in cases of Vitis HLS burst failures  
+
+Running the design (edit x_hls.tcl to run synthesis)
+=================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+Note the following interface #pragma used:
+
+#pragma HLS cache port=in lines=8 depth=128
+
+--- KERNEL FILE: dut.cpp ---
+extern "C" {
+void dut(const unsigned int* in, // Read-Only Vector 1
+         unsigned int* out,      // Output Result
+         int size                // Size in integer
+) {
+
+#pragma HLS INTERFACE m_axi port = in bundle = aximm depth = 1024
+#pragma HLS INTERFACE m_axi port = out bundle = aximm depth = 1024
+
+// new cache pragma
+#pragma HLS cache port = in lines = 8 depth = 128
+
+    for (int i = 0; i < size; i++) {
+#pragma HLS pipeline II = 1
+        int t;
+        if (i != 512)
+            t = in[i] + 1;
+        else
+            t = in[i];
+        out[i] = t;
+    }
+}
+}
+
+
+================================================================================
+Example: Interface/Memory/cache/maxi_cache_locality
+================================================================================
+--- README ---
+This example illustrates usage of cache when vitis HLS fails to burst
+
+=================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+Note the following interface #pragma used:
+
+#pragma HLS cache port=in lines=16 depth=512
+
+--- KERNEL FILE: dut.cpp ---
+extern "C" {
+void dut(const double* in, // Read-Only Vector 1
+         double* out,      // Output Result
+         int size          // Size in integer
+) {
+
+#pragma HLS INTERFACE mode = m_axi bundle = aximm2 depth =                     \
+    1025 max_read_burst_length = 128 num_read_outstanding = 256 port = in
+#pragma HLS INTERFACE m_axi port = out bundle = aximm depth = 1024
+
+#pragma HLS cache port = in lines = 1 depth = 128
+
+    for (int i = 0; i < size; i++) {
+        out[i] = in[i] + in[i + 1];
+    }
+}
+}
+
+
+================================================================================
+Example: Interface/Memory/coefficient_filter
+================================================================================
+--- README ---
+Example code for a scaled-integer fixed-point Hamming window function.
+This example is intended to demonstrates the recommended coding style
+when an array should be implemented as a ROM.  The key guideline is that
+the ROM's source (in the C code) array should be initialized by a sub-
+function to the function that access (reads from) the array.  When the
+array is properly inferred to be a ROM, the initialization function will
+be optimized away during HLS.
+
+Running the Design
+=================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+--- KERNEL FILE: hamming_window.c ---
+#include "hamming_window.h" // Provides default WINDOW_LEN if not user defined
+
+// Translation module function prototypes:
+static void hamming_rom_init(int16_t rom_array[]);
+
+// Function definitions:
+void hamming_window(int32_t outdata[WINDOW_LEN], int16_t indata[WINDOW_LEN]) {
+  static int16_t window_coeff[WINDOW_LEN];
+  unsigned i;
+
+  // In order to ensure that 'window_coeff' is inferred and properly
+  // initialized as a ROM, it is recommended that the array initialization
+  // be done in a sub-function with global (wrt this source file) scope.
+  hamming_rom_init(window_coeff);
+process_frame:
+  for (i = 0; i < WINDOW_LEN; i++) {
+#pragma HLS pipeline
+    outdata[i] = (int32_t)window_coeff[i] * (int32_t)indata[i];
+  }
+}
+
+// This initialization function will be optimized away during high level
+// sythesis (HLS), resulting in the underlying memory being inferred as a ROM
+// by RTL synthesis.
+static void hamming_rom_init(int16_t rom_array[WINDOW_LEN]) {
+  int i;
+  for (i = 0; i < WINDOW_LEN; i++) {
+    float real_val =
+        0.54f - 0.46f * cos(2.0f * M_PI * i / (float)(WINDOW_LEN - 1));
+    rom_array[i] = (int16_t)(round(WIN_COEFF_SCALE * real_val));
+  }
+}
+
+
+================================================================================
+Example: Interface/Memory/ecc_flags
+================================================================================
+--- README ---
+This example illustrates how to infer an error code correction ultra-RAM using BIND_STORAGE. 
+
+Note the following interface #prgama used:
+
+#pragma HLS ARRAY_RESHAPE variable=res1 dim=1 factor=2 block
+#pragma HLS BIND_STORAGE variable=res1 type=ram_s2p impl=uram_ecc
+
+--- KERNEL FILE: ecc_flags.cpp ---
+#include "ecc_flags.h"
+
+void sfunc2(din_t vec1[N], const din_t sIter, din_t ovec[N]) {
+    for (int i = 0; i < N; ++i)
+        ovec[i] = vec1[i] / sIter;
+}
+
+void sfunc1(const din_t cIter, din_t a[N], din_t b[N], din_t res[N]) {
+    int i;
+    din_t res1[N];
+#pragma HLS ARRAY_RESHAPE variable = res1 dim = 1 factor = 2 block
+#pragma HLS BIND_STORAGE variable = res1 type = ram_s2p impl = uram_ecc
+    for (i = 0; i < N; i++) {
+        res1[i] = b[i] + a[i];
+    }
+    sfunc2(res1, cIter, res);
+}
+
+void sfunc3(din_t inrun[N], din_t oval[N]) {
+    int i;
+    din_t calc = 0;
+    for (i = 0; i < N; ++i) {
+        calc = (inrun[i] * inrun[i]) / (i + 1);
+        oval[i] = calc;
+    }
+}
+
+void ecc_flags(din_t in1[N], din_t in2[N], const din_t Iter, din_t output[N]) {
+    din_t auxbuffer1[N];
+
+    sfunc1(Iter, in1, in2, auxbuffer1);
+    sfunc3(auxbuffer1, output);
+
+    return;
+}
+
+
+================================================================================
+Example: Interface/Memory/lmem_2rw
+================================================================================
+--- README ---
+This is simple example of vector addition to demonstrate how to utilize both ports of Local Memory in Vitis HLS
+
+Running the Design using Vitis HLS (edit run_hls.tcl to set $hls_exec and enable specific run steps)
+=========================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+Run the design using Vitis v++ and vitis-run commands
+=====================================================
+./run_vitis_commandline.sh
+
+--- KERNEL FILE: vadd.cpp ---
+/*******************************************************************************
+Description:
+    C Kernel to showcase 2 parallel read/write from  Local Memory
+    Description: This is vector addition to demonstrate how to utilized both
+    ports of Local Memory.
+*******************************************************************************/
+
+#include <string.h>
+#include "vadd.h"
+
+// TRIPCOUNT identifiers
+const unsigned int c_chunk_sz = BUFFER_SIZE;
+const unsigned int c_size = DATA_SIZE;
+
+/*
+    Vector Addition Kernel Implementation
+    Arguments:
+        in1   (input)     --> Input Vector1
+        in2   (input)     --> Input Vector2
+        out_r   (output)    --> Output Vector
+        size  (input)     --> Size of Vector in Integer
+   */
+void vadd(const unsigned int* in1, // Read-Only Vector 1
+          const unsigned int* in2, // Read-Only Vector 2
+          unsigned int* out_r,     // Output Result
+          int size                 // Size in integer
+          ) {
+    unsigned int v1_buffer[BUFFER_SIZE];   // Local memory to store vector1
+    unsigned int v2_buffer[BUFFER_SIZE];   // Local memory to store vector2
+    unsigned int vout_buffer[BUFFER_SIZE]; // Local Memory to store result
+
+#pragma HLS INTERFACE m_axi port = in1 depth = DATA_SIZE
+#pragma HLS INTERFACE m_axi port = in2 depth = DATA_SIZE
+#pragma HLS INTERFACE m_axi port = out_r depth = DATA_SIZE
+    // Per iteration of this loop perform BUFFER_SIZE vector addition
+    for (int i = 0; i < size; i += BUFFER_SIZE) {
+#pragma HLS LOOP_TRIPCOUNT min = c_size / c_chunk_sz max = c_size / c_chunk_sz
+        int chunk_size = BUFFER_SIZE;
+        // boundary checks
+        if ((i + BUFFER_SIZE) > size) chunk_size = size - i;
+
+    // burst read of v1 and v2 vector from global memory
+    read1:
+        for (int j = 0; j < chunk_size; j++) {
+#pragma HLS LOOP_TRIPCOUNT min = c_chunk_sz max = c_chunk_sz
+            v1_buffer[j] = in1[i + j];
+        }
+    read2:
+        for (int j = 0; j < chunk_size; j++) {
+#pragma HLS LOOP_TRIPCOUNT min = c_chunk_sz max = c_chunk_sz
+            v2_buffer[j] = in2[i + j];
+        }
+
+    // FPGA implementation, local array is mostly implemented as BRAM Memory
+    // block.
+    // BRAM Memory Block contains two memory ports which allow two parallel access
+    // to memory. To utilized both ports of BRAM block, vector addition loop is
+    // unroll with factor of 2. It is equivalent to following code:
+    //  for (int j = 0 ; j < chunk_size ; j+= 2){
+    //    vout_buffer[j]   = v1_buffer[j] + v2_buffer[j];
+    //    vout_buffer[j+1] = v1_buffer[j+1] + v2_buffer[j+1];
+    //  }
+    // Which means two iterations of loop will be executed together and as a
+    // result
+    // it will double the performance.
+    // Auto-pipeline is going to apply pipeline to this loop
+    vadd:
+        for (int j = 0; j < chunk_size; j++) {
+// As the outer loop is not a perfect loop
+#pragma HLS loop_flatten off
+#pragma HLS UNROLL FACTOR = 2
+#pragma HLS LOOP_TRIPCOUNT min = c_chunk_sz max = c_chunk_sz
+            // perform vector addition
+            vout_buffer[j] = v1_buffer[j] + v2_buffer[j];
+        }
+
+    // burst write the result
+    write:
+        for (int j = 0; j < chunk_size; j++) {
+#pragma HLS LOOP_TRIPCOUNT min = c_chunk_sz max = c_chunk_sz
+            out_r[i + j] = vout_buffer[j];
+        }
+    }
+}
+
+
+================================================================================
+Example: Interface/Memory/manual_burst/manual_burst_example/auto_burst_inference_failure
+================================================================================
+--- README ---
+This example shows that auto burst inference failure as the size is unknown at compile time. 
+Manual burst can be used to improve the performance. 
+
+Running the Design (edit run_hls.tcl to set $hls_exec and enable specific run steps)
+=========================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+--- KERNEL FILE: example.cpp ---
+#include "example.h"
+
+void krnl_transfer(int* in, int* out, const int size) {
+#pragma HLS INTERFACE m_axi port = in depth = 512
+#pragma HLS INTERFACE m_axi port = out depth = 5120
+    int buf[8192];
+    for (int i = 0; i < size; i++) {
+#pragma HLS PIPELINE II = 1
+        buf[i] = in[i];
+    }
+
+    for (int i = 0; i < NUM; i++) {
+        for (int j = 0; j < size; j++) {
+#pragma HLS PIPELINE II = 1
+            out[j + size * i] = buf[j];
+        }
+    }
+}
+
+
+================================================================================
+Example: Interface/Memory/manual_burst/manual_burst_example/manual_burst_inference_success
+================================================================================
+--- README ---
+This example shows how to modify a design that failed automatic burst inference with
+one that succeeds when we use the manual burst flow. 
+
+Running the Design (edit run_hls.tcl to set $hls_exec and enable specific run steps)
+=========================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+--- KERNEL FILE: example.cpp ---
+#include "example.h"
+
+void transfer_kernel(hls::burst_maxi<int> in, hls::burst_maxi<int> out,
+                     const int size) {
+#pragma HLS INTERFACE m_axi port = in depth = 512 latency = 32 offset =        \
+    slave bundle = bundle1
+#pragma HLS INTERFACE m_axi port = out depth = 5120 offset = slave latency =   \
+    32 bundle = bundle2
+
+    int buf[8192];
+    in.read_request(0, size);
+    for (int i = 0; i < size; i++) {
+#pragma HLS PIPELINE II = 1
+        buf[i] = in.read();
+    }
+
+    out.write_request(0, size * NUM);
+
+    for (int i = 0; i < NUM; i++) {
+        for (int j = 0; j < size; j++) {
+#pragma HLS PIPELINE II = 1
+            int a = buf[j];
+            out.write(a);
+        }
+    }
+    out.write_response();
+}
+
+
+================================================================================
+Example: Interface/Memory/manual_burst/manual_burst_with_conditionals
+================================================================================
+--- README ---
+This example shows how manual bursting can be used even if there are
+memory accesses that are guarded by conditional expressions.  
+
+ Running the Design (edit run_hls.tcl to set $hls_exec and enable specific run steps)
+ =========================================================
+ vitis-run --mode hls --tcl run_hls.tcl
+
+--- KERNEL FILE: example.cpp ---
+#include "example.h"
+
+void read_a(hls::burst_maxi<din_t> IN, dout_t x_aux[N], din_t factor) {
+
+    IN.read_request(
+        0,
+        N / 4); // request to read N/4 elements from the first element
+    IN.read_request(
+        N - N / 4,
+        N / 4); // request to read N/4 elements from the last quarter element
+    dout_t X_accum = N / 4;
+    din_t temp;
+    for (int i = 0; i < factor / 2; i++) {
+        if (i < N / 4) {
+            temp = IN.read();
+            X_accum += temp;
+            x_aux[i] = X_accum;
+        } else {
+            if (i == N / 4) {
+                X_accum = i;
+            }
+            temp = IN.read();
+            X_accum += temp;
+            x_aux[N - N / 2 + i] = X_accum - N;
+        }
+    }
+}
+
+void read_b(hls::burst_maxi<din_t> IN, dout_t y_aux[N], din_t factor) {
+    IN.read_request(
+        0,
+        N / 4); // request to read N/4 elements from the first element
+    IN.read_request(
+        N - N / 4,
+        N / 4); // request to read N/4 elements from the last quarter element
+    dout_t Y_accum = N / 4;
+    din_t temp;
+    for (int i = 0; i < factor / 2; i++) {
+        if (i < N / 4) {
+            temp = IN.read();
+            Y_accum += temp;
+            y_aux[i] = Y_accum;
+        } else {
+            if (i == N / 4) {
+                Y_accum = i;
+            }
+            temp = IN.read();
+            Y_accum += temp;
+            y_aux[N - N / 2 + i] = Y_accum + N;
+        }
+    }
+}
+
+void write(hls::burst_maxi<dout_t> RES, dout_t x_aux[N], dout_t y_aux[N]) {
+    RES.write_request(
+        0, N / 4); // request to write N/4 elements from the first element
+    RES.write_request(
+        N - N / 4,
+        N / 4); // request to write N/4 elements from the last quarter element
+
+    for (int i = 0; i < N / 2; i++) {
+        if (i < N / 4)
+            RES.write(x_aux[i] - y_aux[i]);
+        else
+            RES.write(x_aux[N - N / 2 + i] - y_aux[N - N / 2 + i] / N);
+    }
+    RES.write_response(); // wait for the write operation to complete
+    RES.write_response(); // wait for the write operation to complete
+}
+
+void process(dout_t x_aux[N], dout_t y_aux[N], din_t factor) {
+
+    for (int i = 0; i < N / 4; i++) {
+        x_aux[i] = factor + x_aux[i];
+        y_aux[i] = factor + y_aux[i];
+    }
+
+    for (int i = N - N / 4; i < N; i++) {
+        x_aux[i] = x_aux[i] - factor;
+        y_aux[i] = y_aux[i] - factor;
+    }
+}
+
+void example(hls::burst_maxi<din_t> A, hls::burst_maxi<din_t> B,
+             hls::burst_maxi<dout_t> RES, din_t factor) {
+#pragma HLS INTERFACE m_axi depth = 800 port = A bundle = bundle1
+#pragma HLS INTERFACE m_axi depth = 800 port = B bundle = bundle2
+#pragma HLS INTERFACE m_axi depth = 800 port = RES bundle = bundle3
+
+    dout_t x_aux[N];
+    dout_t y_aux[N];
+    read_a(A, x_aux, factor);
+    read_b(B, y_aux, factor);
+
+    process(x_aux, y_aux, factor);
+
+    write(RES, x_aux, y_aux);
+}
+
+
+================================================================================
+Example: Interface/Memory/max_widen_port_width
+================================================================================
+--- README ---
+This example shows how to enable automatic port widening for m_axi ports in the
+Vivado IP flow. In the Vitis kernel flow, the following two config_interface 
+settings are on by default. It is only in the Vivado IP flow that you have to 
+explicit set them.
+
+config_interface -m_axi_max_widen_bitwidth 256
+config_interface -m_axi_alignment_byte_size 64
+
+--- KERNEL FILE: example.cpp ---
+#include "example.h"
+using namespace std;
+
+void example(int a[N], int b[N]) {
+#pragma HLS INTERFACE m_axi port = a depth = N bundle =                        \
+    gmem max_widen_bitwidth = MAXWBW
+#pragma HLS INTERFACE m_axi port = b depth = N bundle = gmem
+    int buff[N];
+    for (size_t i = 0; i < N; ++i) {
+#pragma HLS PIPELINE II = 1
+        buff[i] = a[i];
+        buff[i] = buff[i] + 100;
+        b[i] = buff[i];
+    }
+}
+
+
+================================================================================
+Example: Interface/Memory/ram_uram
+================================================================================
+--- README ---
+This example illustrates how to infer a RAM using BIND_STORAGE. #pragma DEPENDENCE is necessary for achieving II=1
+
+Note the following interface #prgama used:
+
+#pragma HLS DEPENDENCE variable=buffer inter WAR false
+#pragma HLS BIND_STORAGE variable=buffer type=ram_2p impl=uram
+
+--- KERNEL FILE: resource_uram.cpp ---
+#include "resource_uram.h"
+
+void resource_uram(bool wren, bool rden, addr_t addrW, data_t datain,
+                   addr_t AddrR, data_t* dataout) {
+#pragma HLS PIPELINE II = 1
+
+    static data_t buffer[NWORDS];
+#pragma HLS DEPENDENCE variable = buffer inter WAR false
+#pragma HLS BIND_STORAGE variable = buffer type = ram_2p impl = uram
+
+    if (rden)
+        *dataout = buffer[AddrR];
+
+    if (wren)
+        buffer[addrW] = datain;
+}
+
+
+================================================================================
+Example: Interface/Memory/rom_lookup_table_math
+================================================================================
+--- README ---
+This example illustrates how to infer a lookup table implemted as ROM with pre-calculated content
+
+--- KERNEL FILE: lookup_math.cpp ---
+#include "lookup_math.h"
+#include <math.h>
+
+void init_sin_table(din1_t sin_table[256]) {
+    int i;
+    for (i = 0; i < 256; i++) {
+        dint_t real_val = sin(M_PI * (dint_t)(i - 128) / 256.0);
+        sin_table[i] = (din1_t)(32768.0 * real_val);
+    }
+}
+
+dout_t lookup_math(din1_t inval, din2_t idx) {
+    short sin_table[256];
+    init_sin_table(sin_table);
+    return (int)inval * (int)sin_table[idx];
+}
+
+
+================================================================================
+Example: Interface/Memory/using_axi_master
+================================================================================
+--- README ---
+This example illustrates how an input argument of top level function can be mapped to AXI4-MEM
+
+Running the design (edit x_hls.tcl to run synthesis)
+=================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+Block of Data read from the Device memory using AXI4 memory port, added and written back 
+to Device memory using AXI4 memory port. All of these operations are done sequentially.
+
+Note the following interface #pragma used:
+
+#pragma HLS INTERFACE m_axi port=a depth=50
+
+--- KERNEL FILE: example.cpp ---
+/*
+ * This file contains an example for creating an AXI4-master interface in Vivado
+ * HLS
+ */
+
+#include <stdio.h>
+#include <string.h>
+
+void example(volatile int* a) {
+
+#pragma HLS INTERFACE m_axi port = a depth = 50
+
+    int i;
+    int buff[50];
+
+    // memcpy creates a burst access to memory
+    // multiple calls of memcpy cannot be pipelined and will be scheduled
+    // sequentially memcpy requires a local buffer to store the results of the
+    // memory transaction
+    memcpy(buff, (const int*)a, 50 * sizeof(int));
+
+    for (i = 0; i < 50; i++) {
+        buff[i] = buff[i] + 100;
+    }
+
+    memcpy((int*)a, buff, 50 * sizeof(int));
+}
+
+
+================================================================================
+Example: Interface/Register/using_axi_lite_with_user_defined_offset
+================================================================================
+--- README ---
+In this example the user uses to define the offset and the range is dependent on the datatype and port protocol it usese. See the saxi lite  documentation which explains the example in more detail
+
+Running the Design (edit run_hls.tcl to set $hls_exec and enable specific run steps)
+=========================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+--- KERNEL FILE: example.cpp ---
+#include <stdio.h>
+// In this example the user uses to define the offset and the range is dependent
+// on the datatype and port protocol it usese. See the saxi lite  documentation
+// which explains the example in more detail
+
+void example(char* a, char* b, char* c) {
+#pragma HLS INTERFACE s_axilite port = a bundle = BUS_A offset = 0x20
+#pragma HLS INTERFACE s_axilite port = b bundle = BUS_A offset = 0x28
+#pragma HLS INTERFACE s_axilite port = c bundle = BUS_A offset = 0x30
+#pragma HLS INTERFACE s_axilite port = return bundle = BUS_A
+
+    *c += *a + *b;
+}
+
+
+================================================================================
+Example: Interface/Streaming/axi_stream_to_master
+================================================================================
+--- README ---
+This example illustrates how to use a stream and write (with bursts) to a memory mapped interface.
+
+--- KERNEL FILE: example.cpp ---
+#include "example.h"
+
+/// Reads from in_stream and in_counts, Write to out_memory
+void streamtoparallelwithburst(hls::stream<data>& in_stream,
+                               hls::stream<int>& in_counts,
+                               ap_uint<64>* out_memory) {
+    data in_val;
+    do {
+        int count = in_counts.read();
+        for (int i = 0; i < count; ++i) {
+#pragma HLS PIPELINE
+            in_val = in_stream.read();
+            out_memory[i] = in_val.data_filed;
+        }
+        out_memory += count;
+    } while (!in_val.last);
+}
+
+void getinstream(hls::stream<trans_pkt>& in_stream,
+                 hls::stream<data>& out_stream, hls::stream<int>& out_counts) {
+    int count = 0;
+    trans_pkt in_val;
+    do {
+#pragma HLS PIPELINE
+        in_val = in_stream.read();
+        data out_val = {in_val.data, in_val.last};
+        out_stream.write(out_val);
+        count++;
+        if (count >= MAX_BURST_LENGTH || in_val.last) {
+            out_counts.write(count);
+            count = 0;
+        }
+    } while (!in_val.last);
+}
+
+void example(hls::stream<trans_pkt>& inStreamTop, ap_uint<64> outTop[1024]) {
+#pragma HLS INTERFACE axis register_mode = both register port = inStreamTop
+#pragma HLS INTERFACE m_axi max_write_burst_length = 256 latency = 10 depth =  \
+    1024 bundle = gmem0 port = outTop
+#pragma HLS INTERFACE s_axilite port = outTop bundle = control
+#pragma HLS INTERFACE s_axilite port = return bundle = control
+
+#pragma HLS DATAFLOW
+
+    hls::stream<data, DATA_DEPTH> buf;
+    hls::stream<int, COUNT_DEPTH> count;
+
+    getinstream(inStreamTop, buf, count);
+    streamtoparallelwithburst(buf, count, outTop);
+}
+
+
+================================================================================
+Example: Interface/Streaming/using_array_of_streams
+================================================================================
+--- README ---
+This example illustrates how to define and use an array of streams in the interface.
+Instead of defining an array and then using a pragma to map this array to a stream, it
+is highly recommended to use the hls::stream objects instead.
+
+In the Vitis kernel mode, these hls::streams will be automatically mapped to AXIS streams.
+
+--- KERNEL FILE: example.cpp ---
+#include "example.h"
+
+int dut(hls::stream<int> s_in[M], hls::stream<int> s_out[M]) {
+#pragma HLS INTERFACE axis port = s_in
+#pragma HLS INTERFACE axis port = s_out
+
+    int sum = 0;
+    for (unsigned j = 0; j < M; j++) {
+        for (unsigned i = 0; i < 10; i++) {
+            int val = s_in[j].read();
+            s_out[j].write(val + 2);
+            sum += val;
+        }
+    }
+    return sum;
+}
+
+
+================================================================================
+Example: Interface/Streaming/using_axi_stream_with_custom_side_channel_data_2
+================================================================================
+--- README ---
+Example C++ code for implementing an AXI stream interface in Vitis HLS using only TUSER and TLAST channels
+with no TDATA. 
+
+Running the Design (edit x_hls.tcl to run synthesis)
+=================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+--- KERNEL FILE: example.cpp ---
+#include "example.h"
+
+void example(hls::stream<packet>& A, hls::stream<packet>& B) {
+#pragma HLS INTERFACE axis port = A
+#pragma HLS INTERFACE axis port = B
+
+    packet tmp = A.read();
+    tmp.set_user(tmp.get_user() + 5);
+    B.write(tmp);
+}
+
+
+================================================================================
+Example: Interface/Streaming/using_axi_stream_with_side_channel_data
+================================================================================
+--- README ---
+Example C++ code for implementing an AXI stream interface in Vitis HLS using all side channels.
+(TDATA, TKEEP, TSTRB, TLAST and TUSER)
+
+Running the Design (edit x_hls.tcl to run synthesis)
+=================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+--- KERNEL FILE: example.cpp ---
+#include "example.h"
+
+void example(hls::stream<packet>& A, hls::stream<packet>& B) {
+#pragma HLS INTERFACE axis port = A
+#pragma HLS INTERFACE axis port = B
+
+    packet tmp = A.read();
+    tmp.data = tmp.data + 5;
+    B.write(tmp);
+}
+
+
+================================================================================
+Example: Interface/Streaming/using_axi_stream_with_struct
+================================================================================
+--- README ---
+Example C++ code for implementing an AXI stream interface in Vitis HLS using
+only the TDATA field and AXI handshake signals.
+
+Running the Design (edit x_hls.tcl to run synthesis)
+=================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+--- KERNEL FILE: example.cpp ---
+#include "example.h"
+
+void example(mystream& A, mystream& B) {
+#pragma HLS INTERFACE axis port = A
+#pragma HLS INTERFACE axis port = B
+
+    data_t tmp_a;
+
+    do {
+        tmp_a = A.read();
+        data_t tmp_b;
+        tmp_b.data.real(tmp_a.data.real() + 5);
+        tmp_b.data.imag(tmp_a.data.imag() + 1);
+        B.write(tmp_b);
+    } while (!tmp_a.last);
+}
+
+
+================================================================================
+Example: Interface/Streaming/using_axis_array_stream_no_side_channel_data
+================================================================================
+--- README ---
+Example C++ code for implementing an AXI array to stream with no side channels
+
+Running the Design (edit x_hls.tcl to run synthesis)
+=================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+--- KERNEL FILE: example.cpp ---
+void example(int A[50], int B[50]) {
+#pragma HLS INTERFACE axis port = A
+#pragma HLS INTERFACE axis port = B
+
+    int i;
+
+    for (i = 0; i < 50; i++) {
+        B[i] = A[i] + 5;
+    }
+}
+
+
+================================================================================
+Example: Migration
+================================================================================
+--- README ---
+In this example, recommended scripted and command line flows are provided for migration to the Vitis Unified IDE for HLS development.
+
+# Recommended Scripted and Command-Line Migration Flows
+||Path|Usage|Notes|Relevant files|
+|-|-|-|-|-|
+|1| Tcl script| ```vitis-run --mode hls --tcl <tcl_script>```|```open_component``` replaces ```open_project``` and ```open_solution```|tcl_scripts/run_vitis_unified.tcl|
+|2| Vitis Unified Python script|```vitis -s <python_script>```|Two ways:<br>- configuration inside the script<br>- configuration in a file|python_scripts/run.py<br> python_scripts/hls_config.cfg, python_scripts/run_with_external_config.py|
+|3| Vitis Unified Command Line Interface|C Simulation: ```vitis-run --mode hls --csim --config <config_file> --work_dir <work_dir>```<br> C Synthesis: ```v++ --compile --mode hls --config <config_file> --work_dir <work_dir>```<br> Co-Simulation: ```vitis-run --mode hls --cosim --config <config_file> --work_dir <work_dir>``` |HLS config file provided by the user|vitis_unified_cli/hls_config.cfg<br> vitis_unified_cli/Makefile|
+
+# Common source files
+- pointer_basic.h
+- pointer_basic.c
+- pointer_basic_test.c
+- result.golden.dat
+- README.md
+
+# Online Documentation
+[Migrating-from-Vitis-HLS-to-the-Vitis-Unified-IDE](https://docs.amd.com/r/en-US/ug1399-vitis-hls/Migrating-from-Vitis-HLS-to-the-Vitis-Unified-IDE)
+
+[Tcl-to-Config-File-Command-Map](https://docs.amd.com/r/en-US/ug1399-vitis-hls/Tcl-to-Config-File-Command-Map)
+
+--- KERNEL FILE: pointer_basic.c ---
+#include "pointer_basic.h"
+
+void pointer_basic(dio_t *d) {
+  static dio_t acc = 0;
+
+  acc += *d;
+  *d = acc;
+}
+
+
+================================================================================
+Example: Misc/DSP_Intrinsic_Library/systolic_fir
+================================================================================
+--- README ---
+This is a simple example using HLS's DSP Intrinsic Library implement a Systolic FIR filter.
+
+* this file:
+README
+* design files:
+systolic_fir.cpp
+systolic_fir.h
+systolic_fir_test.cpp
+* scripts:
+run_hls.tcl
+run.py
+run_vitis_commandline.sh
+hls_config-for-commandline-use.cfg
+
+Running the Design using Vitis HLS
+==================================
+
+Use vitis-run to execute the script "run_hls.tcl" ; edit it to set $hls_exec and enable specific run steps.
+$ vitis-run --mode hls --tcl run_hls.tcl
+
+Running the design using Vitis v++ and vitis-run commands
+=========================================================
+
+Use "run_vitis_commandline.sh" to run on the commands line the specified flow steps in the given order.
+$ ./run_vitis_commandline.sh help
+$ ./run_vitis_commandline.sh csim
+$ ./run_vitis_commandline.sh csim csynth cosim
+
+Running the design using Python and python script
+=================================================
+Use Vitis to set up a workspace and component from the script and runs csim csynth cosim.
+$ vitis -s run.py
+
+--- KERNEL FILE: systolic_fir.cpp ---
+#include "systolic_fir.h"
+
+template <int size>
+class FIR{
+     private:
+         const long* coeff_;
+         long bias_;
+         cascade<REG_A1|REG_B1|       REG_M|REG_P > dsp0;
+         cascade<REG_A1|REG_B1|REG_B2|REG_M|REG_P > dsp_full[size - 1];
+     public:
+        FIR(const long* coeff, long bias)
+            : coeff_(coeff), bias_(bias) {
+#pragma HLS ARRAY_PARTITION variable=dsp_full complete dim=1
+            };
+
+        long fir(B_t input){
+
+            auto out = dsp0.mul_add(coeff_[0], input, bias_);
+            for(int j=1; j < size ; j++){
+#pragma HLS unroll
+                out = dsp_full[j - 1].mul_add(coeff_[j], out.bcout, out.pcout);
+            }
+            return out.pcout;
+        };
+
+};
+
+void systolic_fir(
+
+        long a[TAPS],
+        long b[N], long c, long hw[N])
+{
+    #pragma HLS ARRAY_PARTITION variable=a complete dim=1
+    FIR<TAPS> my_fir(a, c);
+
+    LOOP_FIR:
+    for(int i = 0 ; i< N ; i++){
+        hw[i] = my_fir.fir(b[i]);
+    }
+}
+
+
+================================================================================
+Example: Misc/DSP_Intrinsic_Library/systolic_fir_using_complex
+================================================================================
+--- README ---
+This is a simple example using HLS's DSP Intrinsic Library implement a Systolic FIR filter using std::complex<> data type.
+
+* this file:
+README
+* design files:
+systolic_fir.cpp
+systolic_fir.h
+systolic_fir_test.cpp
+* scripts:
+run_hls.tcl
+run.py
+run_vitis_commandline.sh
+hls_config-for-commandline-use.cfg
+
+Running the Design using Vitis HLS
+==================================
+
+Use vitis-run to execute the script "run_hls.tcl" ; edit it to set $hls_exec and enable specific run steps.
+$ vitis-run --mode hls --tcl run_hls.tcl
+
+Running the design using Vitis v++ and vitis-run commands
+=========================================================
+
+Use "run_vitis_commandline.sh" to run on the commands line the specified flow steps in the given order.
+$ ./run_vitis_commandline.sh help
+$ ./run_vitis_commandline.sh csim
+$ ./run_vitis_commandline.sh csim csynth cosim
+
+Running the design using Python and python script
+=================================================
+Use Vitis to set up a workspace and component from the script and runs csim csynth cosim.
+$ vitis -s run.py
+
+--- KERNEL FILE: systolic_fir.cpp ---
+#include "systolic_fir.h"
+
+// example showing cascades to infer "size" DSPCPLX and using cascaded connections
+template <int size>
+class FIR{
+     private:
+         const A_t* coeff_;
+         C_t bias_;
+         cascade<BALANCED_PIPELINE|REG_M|REG_P > dsp0;
+         cascade<    FULL_PIPELINE|REG_M|REG_P > dsp_full[size - 1]; 
+     public:
+        FIR(const A_t* coeff, C_t bias) : coeff_(coeff), bias_(bias) {
+            #pragma HLS ARRAY_PARTITION variable=dsp_full complete dim=1
+        };
+
+        C_t fir(B_t input){
+            auto out = dsp0.mul_add(coeff_[0], input, bias_);
+            for(int j=1; j < size ; j++){
+                #pragma HLS unroll
+                out = dsp_full[j - 1].mul_add(coeff_[j], out.bcout, out.pcout);
+            }
+            return out.pcout;
+        }; // end of fir function
+}; // end of FIR class
+
+void systolic_fir( A_t coeff[TAPS], B_t b[NDATA], C_t bias, C_t hw[NDATA]) {
+    #pragma HLS ARRAY_PARTITION variable=coeff complete dim=1
+   
+    FIR<TAPS> my_fir(coeff, bias);
+
+    LOOP_FIR:
+    for(auto i = 0 ; i< NDATA ; i++){
+        #pragma HLS pipeline II=1
+        hw[i] = my_fir.fir(b[i]);
+    }
+}
+
+
+================================================================================
+Example: Misc/DSP_Intrinsic_Library/transposed_fir
+================================================================================
+--- README ---
+This is a simple example using HLS's DSP Intrinsic Library implement a Transposed FIR filter.
+
+* this file:
+README
+* design files:
+transposed_fir.cpp
+transposed_fir.h
+transposed_fir_test.cpp
+* scripts:
+run_hls.tcl
+run.py
+run_vitis_commandline.sh
+hls_config-for-commandline-use.cfg
+
+Running the Design using Vitis HLS
+==================================
+
+Use vitis-run to execute the script "run_hls.tcl" ; edit it to set $hls_exec and enable specific run steps.
+$ vitis-run --mode hls --tcl run_hls.tcl
+
+Running the design using Vitis v++ and vitis-run commands
+=========================================================
+
+Use "run_vitis_commandline.sh" to run on the commands line the specified flow steps in the given order.
+$ ./run_vitis_commandline.sh help
+$ ./run_vitis_commandline.sh csim
+$ ./run_vitis_commandline.sh csim csynth cosim
+
+Running the design using Python and python script
+=================================================
+Use Vitis to set up a workspace and component from the script and runs csim csynth cosim.
+$ vitis -s run.py
+
+--- KERNEL FILE: transposed_fir.cpp ---
+#include "transposed_fir.h"
+
+// using actual bitwidth of DSP slice !top bits discarded!
+C_t one_stage_mult_add(A_t a, B_t b, C_t in) {
+    cascade<REG_A1 | REG_B1 | REG_M | REG_P> cas;
+    R_t res = cas.mul_add(a, b, in);
+    return res.pcout;
+}
+
+void transposed_fir( long &data_out, long data_in,
+             long h0, long h1, long h2, long h3) {
+    #pragma HLS pipeline II=1
+    C_t pc_0_1, pc_1_2, pc_2_3, p_3;
+    A_t data_in_fanout = data_in;
+    pc_0_1 = one_stage_mult_add( h0, data_in_fanout, 0); // mul only so adds 0
+    pc_1_2 = one_stage_mult_add( h1, data_in_fanout, pc_0_1);
+    pc_2_3 = one_stage_mult_add( h2, data_in_fanout, pc_1_2);
+    p_3    = one_stage_mult_add( h3, data_in_fanout, pc_2_3);
+    data_out = p_3;
+}
+
+
+================================================================================
+Example: Misc/fft/interface_array
+================================================================================
+--- README ---
+Description
+===========
+   C++ source code example for instantiation of the LogiCORE FFT IP in Vitis HLS.
+
+   This example is a single 1024 point forward FFT.
+
+   Please refer to upper level directory for a description of the different versions.
+
+Files
+=======
+data        : directory with input and expected data used by the testbench
+fft_tb.cpp  : C testbench
+fft_top.cpp : top C function fft_top
+ffp_top.h   : header file for the example 
+run_hls.tcl : script to run synthesis, simulation and export IP
+run.py	    : script to run csimulation, csynthesis and cosimulation using vitis
+README      : this readme file
+
+Run Example
+======================
+Open a command prompt with vitis tools set up and then run the command below
+    vitis-run --mode hls --tcl run_hls.tcl
+
+Run the command below for python script
+    vitis -s run.py
+
+--- KERNEL FILE: fft_top.cpp ---
+#include "fft_top.h"
+
+void inputdatamover(bool direction, config_t* config, cmpxDataIn in[FFT_LENGTH],
+                    cmpxDataIn out[FFT_LENGTH]) {
+    config->setDir(direction);
+    config->setSch(0x2AB);
+L0:
+    for (int i = 0; i < FFT_LENGTH; i++) {
+        out[i] = in[i];
+    }
+}
+
+void outputdatamover(status_t* status_in, bool* ovflo,
+                     cmpxDataOut in[FFT_LENGTH], cmpxDataOut out[FFT_LENGTH]) {
+L0:
+    for (int i = 0; i < FFT_LENGTH; i++) {
+        out[i] = in[i];
+    }
+    *ovflo = status_in->getOvflo() & 0x1;
+}
+
+void myfftwrapper(cmpxDataIn xn[FFT_LENGTH], cmpxDataIn xk[FFT_LENGTH],
+                  status_t& fft_status, config_t& fft_config) {
+#pragma HLS dataflow
+#pragma HLS INLINE recursive
+    hls::fft<config1>(xn, xk, &fft_status, &fft_config);
+}
+
+void fft_top(bool direction, complex<data_in_t> in[FFT_LENGTH],
+             complex<data_out_t> out[FFT_LENGTH], bool* ovflo) {
+#pragma HLS interface ap_hs port = direction
+#pragma HLS interface ap_fifo depth = 1 port = ovflo
+#pragma HLS interface ap_fifo depth = FFT_LENGTH port = in, out
+#pragma HLS dataflow
+
+    complex<data_in_t> xn[FFT_LENGTH];
+    complex<data_out_t> xk[FFT_LENGTH];
+    config_t fft_config;
+    status_t fft_status;
+
+    inputdatamover(direction, &fft_config, in, xn);
+
+    // FFT IP
+    myfftwrapper(xn, xk, fft_status, fft_config);
+
+    outputdatamover(&fft_status, ovflo, xk, out);
+}
+
+
+================================================================================
+Example: Misc/fft/interface_stream
+================================================================================
+--- README ---
+Description
+===========
+   C++ source code example for instantiation of the LogiCORE FFT IP in Vitis HLS.
+
+   This example is a single 1024 point forward FFT.
+
+   Please refer to upper level directory for a description of the different versions.
+
+Files
+=======
+data        : directory with input and expected data used by the testbench
+fft_tb.cpp  : C testbench
+fft_top.cpp : top C function fft_top
+ffp_top.h   : header file for the example 
+run_hls.tcl : script to run synthesis, simulation and export IP
+run.py	    : script to run csimulation, csynthesis and cosimulation using vitis
+README      : this readme file
+
+Run Example
+======================
+Open a command prompt with vitis tools set up and then run the command below
+    vitis-run --mode hls --tcl run_hls.tcl
+
+Run the command below for python script
+    vitis -s run.py
+
+--- KERNEL FILE: fft_top.cpp ---
+#include "fft_top.h"
+
+void inputdatamover(bool direction, hls::stream<config_t>& config_strm,
+                    hls::stream<cmpxDataIn>& in,
+                    hls::stream<cmpxDataIn>& out_strm) {
+    config_t config;
+    config.setDir(direction);
+    config.setSch(0x2AB);
+    config_strm.write(config);
+L0:
+    for (int i = 0; i < FFT_LENGTH; i++) {
+#pragma HLS pipeline II = 1 rewind
+        out_strm.write(in.read());
+    }
+}
+
+void outputdatamover(hls::stream<status_t>& status_in_strm, bool* ovflo,
+                     hls::stream<cmpxDataOut>& in_strm,
+                     hls::stream<cmpxDataOut>& out) {
+L0:
+    for (int i = 0; i < FFT_LENGTH; i++) {
+#pragma HLS pipeline II = 1 rewind
+        out.write(in_strm.read());
+    }
+    status_t status = status_in_strm.read();
+    *ovflo = status.getOvflo() & 0x1;
+}
+
+void fft_top(bool direction, hls::stream<cmpxDataIn>& in,
+             hls::stream<cmpxDataOut>& out, bool* ovflo) {
+#pragma HLS interface ap_hs port = direction
+#pragma HLS interface ap_fifo depth = 1 port = ovflo
+#pragma HLS interface ap_fifo depth = FFT_LENGTH port = in, out
+#pragma HLS dataflow
+
+    hls::stream<complex<data_in_t>> xn;
+    hls::stream<complex<data_out_t>> xk;
+    hls::stream<config_t> fft_config;
+    hls::stream<status_t> fft_status;
+
+    inputdatamover(direction, fft_config, in, xn);
+
+    // FFT IP
+    hls::fft<config1>(xn, xk, fft_status, fft_config);
+
+    outputdatamover(fft_status, ovflo, xk, out);
+}
+
+
+================================================================================
+Example: Misc/malloc_removed
+================================================================================
+--- README ---
+This example shows how to rewrite without using explicit mallocs in the C/C++ code.
+
+Running the Design (edit run_hls.tcl to set $hls_exec and enable specific run steps)
+=========================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+--- KERNEL FILE: malloc_removed.c ---
+#include "malloc_removed.h"
+#include <stdlib.h>
+//#define NO_SYNTH
+
+dout_t malloc_removed(din_t din[N], dsel_t width) {
+
+#ifdef NO_SYNTH
+  long long *out_accum = malloc(sizeof(long long));
+  int *array_local = malloc(64 * sizeof(int));
+#else
+  long long _out_accum;
+  long long *out_accum = &_out_accum;
+  int _array_local[64];
+  int *array_local = &_array_local[0];
+#endif
+  int i, j;
+
+LOOP_SHIFT:
+  for (i = 0; i < N - 1; i++) {
+    if (i < width)
+      *(array_local + i) = din[i];
+    else
+      *(array_local + i) = din[i] >> 2;
+  }
+
+  *out_accum = 0;
+LOOP_ACCUM:
+  for (j = 0; j < N - 1; j++) {
+    *out_accum += *(array_local + j);
+  }
+
+  return *out_accum;
+}
+
+
+================================================================================
+Example: Misc/rtl_as_blackbox
+================================================================================
+--- README ---
+This example uses the RTL blackbox feature. 
+The RTL blackbox enables the use of existing RTL IP in an HLS project. This lets you add RTL code to your C/C++ code for synthesis of the project by Vitis HLS.
+
+Running the Design (edit run_hls.tcl to run synthesis)
+=================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+Running the design using python script
+=====================================================
+vitis -s run.py
+
+--- KERNEL FILE: rtl_model.cpp ---
+#include "example.h"
+//--------------------------------------------------------
+void rtl_model(data_t a1, data_t a2, data_t a3, data_t a4, data_t b1, data_t b2,
+               data_t b3, data_t b4, data_t& z1, data_t& z2, data_t& z3,
+               data_t& z4) {
+#pragma HLS inline off
+    z1 = a1 + b1;
+    z2 = a2 + b2;
+    z3 = a3 + b3;
+    z4 = a4 + b4;
+}
+
+
+================================================================================
+Example: Modeling/Pointers/basic_arithmetic
+================================================================================
+--- README ---
+This simple example illustrates the usage of synthesizeable pointer arithmetic. 
+
+Running the Design (edit run_hls.tcl to set $hls_exec and enable specific run steps)
+=========================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+--- KERNEL FILE: pointer_arith.c ---
+#include "pointer_arith.h"
+
+void pointer_arith(dio_t *d) {
+  static int acc = 0;
+  int i;
+
+  for (i = 0; i < 4; i++) {
+    acc += *(d + i + 1);
+    *(d + i) = acc;
+  }
+}
+
+
+================================================================================
+Example: Modeling/Pointers/basic_pointers
+================================================================================
+--- README ---
+This example shows a simple pointer based design. 
+
+Running the Design (edit run_hls.tcl to set $hls_exec and enable specific run steps)
+=========================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+--- KERNEL FILE: pointer_basic.c ---
+#include "pointer_basic.h"
+
+void pointer_basic(dio_t *d) {
+  static dio_t acc = 0;
+
+  acc += *d;
+  *d = acc;
+}
+
+
+================================================================================
+Example: Modeling/Pointers/multiple_pointers
+================================================================================
+--- README ---
+This simple example show how a pointer can be made to point to different arrays
+in a synthesizeable design. 
+
+Running the Design (edit run_hls.tcl to set $hls_exec and enable specific run steps)
+=========================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+--- KERNEL FILE: pointer_multi.c ---
+#include "pointer_multi.h"
+
+dout_t pointer_multi(sel_t sel, din_t pos) {
+  static dout_t a[8] = {1, 2, 3, 4, 5, 6, 7, 8};
+  static dout_t b[8] = {8, 7, 6, 5, 4, 3, 2, 1};
+
+  dout_t *ptr;
+  if (sel)
+    ptr = a;
+  else
+    ptr = b;
+
+  return ptr[pos];
+}
+
+
+================================================================================
+Example: Modeling/Pointers/native_casts
+================================================================================
+--- README ---
+This example shows how to use native C type casts in a synthesizable design.
+
+Running the Design (edit run_hls.tcl to set $hls_exec and enable specific run steps)
+=========================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+--- KERNEL FILE: pointer_cast_native.c ---
+#include "pointer_cast_native.h"
+
+data_t pointer_cast_native(data_t index, data_t A[N]) {
+  dint_t *ptr;
+  data_t i = 0, result = 0;
+  ptr = (dint_t *)(&A[index]);
+
+  // Sum from the indexed value as a different type
+  for (i = 0; i < 4 * (N / 10); ++i) {
+    result += *ptr;
+    ptr += 1;
+  }
+  return result;
+}
+
+
+================================================================================
+Example: Modeling/Pointers/stream_better
+================================================================================
+--- README ---
+This example shows an alternative to ap_fifo mode for pointers in the interface and uses
+ap_hs as the mode instead. 
+
+Running the Design (edit run_hls.tcl to set $hls_exec and enable specific run steps)
+=========================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+--- KERNEL FILE: pointer_stream_better.c ---
+#include "pointer_stream_better.h"
+
+void pointer_stream_better(volatile dout_t *d_o, volatile din_t *d_i) {
+  din_t acc = 0;
+
+  acc += *d_i;
+  acc += *d_i;
+  *d_o = acc;
+  acc += *d_i;
+  acc += *d_i;
+  *d_o = acc;
+}
+
+
+================================================================================
+Example: Modeling/Pointers/stream_good
+================================================================================
+--- README ---
+This example shows how to model using pointers and how to map pointers to streams.
+
+Running the Design (edit run_hls.tcl to set $hls_exec and enable specific run steps)
+=========================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+Note the following directives in run_hls.tcl:
+set_directive_interface -depth 4 -mode ap_fifo "pointer_stream_good" d_i
+set_directive_interface -depth 2 -mode ap_fifo "pointer_stream_good" d_o
+
+--- KERNEL FILE: pointer_stream_good.c ---
+#include "pointer_stream_good.h"
+
+void pointer_stream_good(volatile dout_t *d_o, volatile din_t *d_i) {
+  din_t acc = 0;
+
+  acc += *d_i;
+  acc += *(d_i + 1);
+  *d_o = acc;
+  acc += *(d_i + 2);
+  acc += *(d_i + 3);
+  *(d_o + 1) = acc;
+}
+
+
+================================================================================
+Example: Modeling/Pointers/using_double
+================================================================================
+--- README ---
+This simple design illustrate the usage of the C native double data type. 
+
+Running the Design (edit run_hls.tcl to set $hls_exec and enable specific run steps)
+=========================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+--- KERNEL FILE: pointer_double.c ---
+#include "pointer_double.h"
+
+data_t sub(data_t ptr[10], data_t size, data_t **flagPtr) {
+  data_t x, i;
+
+  x = 0;
+  // Sum x if AND of local index and double-pointer index is true
+  for (i = 0; i < size; ++i)
+    if (**flagPtr & i)
+      x += *(ptr + i);
+  return x;
+}
+
+data_t pointer_double(data_t pos, data_t x, data_t *flag) {
+  data_t array[10] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+  data_t *ptrFlag;
+  data_t i;
+
+  ptrFlag = flag;
+
+  // Write x into index position pos
+  if (pos >= 0 & pos < 10)
+    *(array + pos) = x;
+
+  // Pass same index (as pos) as pointer to another function
+  return sub(array, 10, &ptrFlag);
+}
+
+
+================================================================================
+Example: Modeling/fixed_point_sqrt
+================================================================================
+--- README ---
+Example code for template function that implements a fixed point square-
+root algorithm for HLS.
+
+While the <math.h> (or <cmath>) square-root (sqrt(), sqrtf(), etc) are
+supported for HLS, they are always implemented as floating point operations
+and result in the instantiation of a CoreGen Floating Point Operator core
+in the final RTL, regardless of the types passed.  This template function
+can result in a more efficient implementation for fixed point (and integer)
+data types while maintaining precision of results (see comments in 
+fxp_sqrt.h for more details).
+
+Running the Design
+=================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+--- KERNEL FILE: fxp_sqrt_top.cpp ---
+#include "fxp_sqrt_top.h"
+
+out_data_t fxp_sqrt_top(in_data_t& in_val) {
+    out_data_t result;
+    fxp_sqrt(result, in_val);
+    return result;
+}
+
+
+================================================================================
+Example: Modeling/free_running_kernel_remerge_ii4to1
+================================================================================
+--- README ---
+This example illustrates coding example of achieving II=1 based on two sources using De-Mux/Mux mechanism.
+It also uses a ap_ctrl_none which shows the free-running kernel behavior 
+
+Running the Design (edit run_hls.tcl to set $hls_exec and enable specific run steps)
+=========================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+Note the following interface #prgama used:
+
+#pragma HLS PIPELINE II=1
+#pragma HLS DATAFLOW
+#pragma HLS STREAM variable = inter depth = 16
+#pragma HLS STREAM variable = mux_in depth = 16
+
+--- KERNEL FILE: example.cpp ---
+//                    +--proc-->[ II=4 ]--+
+//                   /                     \               
+// in -->[demux II=1]                       [mux II=1]---> out
+//                   \                     /
+//                    +--proc-->[ II=4 ]--+
+
+#include "example.h"
+
+//--------------------------------------------
+template <int ID> void proc(stream<int, 16>& in, stream<int, 16>& out) {
+    for (int i = 0; i < 25; i++) {
+#pragma HLS PIPELINE II = 4
+#pragma HLS LATENCY min = 2 max = 2
+        int var;
+        in.read(var);
+        out.write(var);
+    }
+}
+
+//--------------------------------------------
+void mux(stream<int, 16> (&inter)[2], stream<int>& mux_output) {
+    int mux_sel = 0;
+    for (int i = 0; i < 50; i++) {
+#pragma HLS PIPELINE II = 1
+        int var;
+        inter[mux_sel].read(var);
+        mux_output.write(var);
+        mux_sel = (mux_sel == 0) ? (1) : (0);
+    }
+}
+
+//--------------------------------------------
+void demux(stream<int>& in, stream<int, 16> (&inter)[2]) {
+    int demux_sel = 0;
+    for (int i = 0; i < 50; i++) {
+#pragma HLS PIPELINE II = 1
+
+        int var;
+        in.read(var);
+        inter[demux_sel].write(var);
+        demux_sel = (demux_sel == 0) ? 1 : 0;
+    }
+}
+
+void example(stream<int>& in, stream<int>& out) {
+#pragma HLS INTERFACE mode = ap_ctrl_none port = return
+#pragma HLS DATAFLOW
+
+    stream<int, 16> inter[2];
+    stream<int, 16> mux_in[2];
+
+    demux(in, inter);
+    proc<0>(inter[0], mux_in[0]);
+    proc<1>(inter[1], mux_in[1]);
+    mux(mux_in, out);
+}
+
+
+================================================================================
+Example: Modeling/using_C++_templates
+================================================================================
+--- README ---
+This simple example shows how to use C++ templatized structs, used to implement a tail-recursion Fibonacci algorithm for example
+
+Running the Design (edit run_hls.tcl to enable specific run steps)
+=========================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+--- KERNEL FILE: cpp_template.cpp ---
+#include "cpp_template.h"
+
+// Tail recursive call
+template <data_t N> struct fibon_s {
+    template <typename T> static T fibon_f(T a, T b) {
+        return fibon_s<N - 1>::fibon_f(b, (a + b));
+    }
+};
+
+// Termination condition
+template <> struct fibon_s<1> {
+    template <typename T> static T fibon_f(T a, T b) { return b; }
+};
+
+void cpp_template(data_t a, data_t b, data_t& dout) {
+    dout = fibon_s<FIB_N>::fibon_f(a, b);
+}
+
+
+================================================================================
+Example: Modeling/using_C++_templates_for_multiple_instances
+================================================================================
+--- README ---
+This simple example shows how to use C++ template functions to create
+multiple instances of the same function. This is one way to prevent
+Vitis HLS from creating one module master and then sharing the instance of
+the master across multiple cycles. The template function method can be
+use to create multiple instances of the same function and Vitis HLS would
+treat them as separate unique functions that are not shared. 
+
+Running the Design (edit run_hls.tcl to enable specific run steps)
+=========================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+--- KERNEL FILE: cpp_template.cpp ---
+#include "cpp_template.h"
+
+void cpp_template(int inp, int* out) {
+    int out0, out1, out2, out3, out4;
+
+    // Use templated functions to get multiple instances
+    // of the same function.
+    func_with_static<1>(inp, &out0);
+    func_with_static<2>(inp, &out1);
+    func_with_static<3>(inp, &out2);
+    func_with_static<4>(inp, &out3);
+    func_with_static<5>(inp, &out4);
+
+    *out += out0 + out1 + out2 + out3 + out4;
+}
+
+
+================================================================================
+Example: Modeling/using_ap_float_accumulator
+================================================================================
+--- README ---
+This is a simple example using HLS's ap_float to demonstrate the use of accumulation.
+
+* this file:
+README
+* design files:
+using_ap_float_accumulator.cpp
+using_ap_float_accumulator.h
+using_ap_float_accumulator_test.cpp
+* scripts:
+run_hls.tcl
+run.py
+run_vitis_commandline.sh
+hls_config-for-commandline-use.cfg
+
+Running the Design using Vitis HLS
+==================================
+
+Use vitis-run to execute the script "run_hls.tcl" ; edit it to set $hls_exec and enable specific run steps.
+$ vitis-run --mode hls --tcl run_hls.tcl
+
+Running the design using Vitis v++ and vitis-run commands
+=========================================================
+
+Use "run_vitis_commandline.sh" to run on the commands line the specified flow steps in the given order.
+$ ./run_vitis_commandline.sh help
+$ ./run_vitis_commandline.sh csim
+$ ./run_vitis_commandline.sh csim csynth cosim
+
+Running the design using Python and python script
+=================================================
+Use Vitis to set up a workspace and component from the script and runs csim csynth cosim.
+$ vitis -s run.py
+
+--- KERNEL FILE: using_ap_float_accumulator.cpp ---
+#include "using_ap_float_accumulator.h"
+
+void using_ap_float_accumulator( stream_t &instream, stream_t &outstream, int n) {
+    apf_t res;
+    ap_float_acc<apf_t, acc_datatype_t> acc;
+accloop:
+    for (unsigned int i = 0; i < n; i++) {
+        apf_t value = instream.read();
+        res = acc.accumulate(value, i == n-1);
+    }
+    outstream.write((float)res);
+}
+
+
+================================================================================
+Example: Modeling/using_arbitrary_precision_arith
+================================================================================
+--- README ---
+This example illustrates defining arbitrary precision variables through the ap_int.h library
+
+Running the Design (edit run_hls.tcl to enable specific run steps)
+=========================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+--- KERNEL FILE: cpp_ap_int_arith.cpp ---
+#include "cpp_ap_int_arith.h"
+
+void cpp_ap_int_arith(dinA_t inA, dinB_t inB, dinC_t inC, dinD_t inD,
+                      dout1_t* out1, dout2_t* out2, dout3_t* out3,
+                      dout4_t* out4) {
+
+    // Basic arithmetic operations
+    *out1 = inA * inB;
+    *out2 = inB + inA;
+    *out3 = inC / inA;
+    *out4 = inD % inA;
+}
+
+
+================================================================================
+Example: Modeling/using_arbitrary_precision_casting
+================================================================================
+--- README ---
+This simple test illustrates casting to/from arbitrary precision data types defined through ap_int.h
+
+Running the Design (edit run_hls.tcl to enable specific run steps)
+=========================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+--- KERNEL FILE: arbitrary_precision_casting.cpp ---
+#include "arbitrary_precision_casting.h"
+
+dout_t arbitrary_precision_casting(din_t a, din_t b) {
+
+    return (dout_t)a * (dout_t)b;
+}
+
+
+================================================================================
+Example: Modeling/using_array_stencil_1d
+================================================================================
+--- README ---
+Example C++ code for the Stencil pragma in Vitis HLS
+
+Running the design using Python Script 
+=================================================
+vitis -s run.py
+
+Running the design using TCL FILE (edit run_hls.tcl to run synthesis)
+=================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+--- KERNEL FILE: dut.cpp ---
+#include<string.h>
+#define HS 100
+#define WS 100
+#define FW 3
+#define FH 1
+
+void top(float in[HS][WS], float out[HS][WS-FW+1], float var_in) {
+#pragma HLS INTERFACE m_axi port=in offset=slave bundle=gmem
+#pragma HLS INTERFACE m_axi port=out offset=slave bundle=gmem
+
+#pragma HLS INTERFACE s_axilite port=in bundle=control
+#pragma HLS INTERFACE s_axilite port=out bundle=control
+#pragma HLS INTERFACE s_axilite port=var_in bundle=control
+#pragma HLS INTERFACE s_axilite port=return bundle=control
+
+   for (int i = 0; i < 100; i++) {
+     for (int j = 0; j < 100-FW+1; j++) {
+#pragma HLS pipeline II=1
+#pragma HLS array_stencil variable=in
+        out[i][j] = in[i][j] + in[i][j+1] + in[i][j+2] + var_in;
+     }
+   }
+}
+
+
+================================================================================
+Example: Modeling/using_array_stencil_2d
+================================================================================
+--- README ---
+Example C++ code for the Stencil pragma in Vitis HLS
+
+Running the design using Python Script 
+=================================================
+vitis -s run.py
+
+Running the design (edit run_hls.tcl to run synthesis)
+=================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+--- KERNEL FILE: filter2d_hw.cpp ---
+#include "common.h"
+#include "hls_stream.h"
+
+extern "C" {
+void Filter2DKernel(
+		const char           coeff[256],
+		const unsigned char src[MAX_IMAGE_HEIGHT][MAX_IMAGE_WIDTH],
+		unsigned char       dst[MAX_IMAGE_HEIGHT][MAX_IMAGE_WIDTH])
+{
+#pragma HLS INTERFACE mode=m_axi port=src bundle=gmem1 depth=MAX_IMAGE_WIDTH*MAX_IMAGE_HEIGHT
+#pragma HLS INTERFACE mode=m_axi port=coeff bundle=gmem1 
+#pragma HLS INTERFACE mode=m_axi port=dst bundle=gmem1 depth=MAX_IMAGE_WIDTH*MAX_IMAGE_HEIGHT
+#pragma HLS INTERFACE s_axilite port = src bundle = control
+#pragma HLS INTERFACE s_axilite port = dst bundle = control
+#pragma HLS INTERFACE s_axilite port = coeff bundle = control
+#pragma HLS INTERFACE s_axilite port = return bundle = control
+
+    char coeffs[FILTER_V_SIZE][FILTER_H_SIZE];
+    float factor = 1.0/(FILTER_V_SIZE*FILTER_H_SIZE);
+    short bias   = 0;
+// Load the coefficients into local storage
+    load_coefs: for (int i=0; i<FILTER_V_SIZE; i++) {
+        for (int j=0; j<FILTER_H_SIZE; j++) {
+#pragma HLS PIPELINE II=1
+            coeffs[i][j] = coeff[i];
+        }
+    }
+
+    for(int y=0; y<30; ++y)
+    {
+        for(int x=0; x<1000; ++x)
+        {
+#pragma HLS pipeline II=1
+#pragma HLS array_stencil variable=src
+
+        	// Apply 2D filter to the pixel window
+			int sum = 0;
+			for(int row=0; row<FILTER_V_SIZE; row++)
+			{
+
+				for(int col=0; col<FILTER_H_SIZE; col++)
+				{
+					unsigned char pixel;
+					int xoffset = (x+col-(FILTER_H_SIZE/2));
+					int yoffset = (y+row-(FILTER_V_SIZE/2));
+					// Deal with boundary conditions : clamp pixels to 0 when outside of image 
+					if ( (xoffset<0) || (xoffset>=1000) || (yoffset<0) || (yoffset>=30) ) {
+						pixel = 0;
+					} else {
+						pixel = src[yoffset][xoffset];
+					}
+					sum += pixel*coeffs[row][col];
+				}
+			}
+			
+        	// Normalize and saturate result
+			unsigned char outpix = MIN(MAX((int(factor * sum)+bias), 0), 255);
+
+			// Write output
+           	dst[y][x] = outpix;
+        }
+    }
+}
+
+}
+
+
+================================================================================
+Example: Modeling/using_fixed_point
+================================================================================
+--- README ---
+This simple test illustrates how to use ap_fixed/ap_ufixed fixed point data types.
+
+--- KERNEL FILE: cpp_ap_fixed.cpp ---
+#include "cpp_ap_fixed.h"
+
+dout_t cpp_ap_fixed(din1_t d_in1, din2_t d_in2) {
+
+    static dint_t sum;
+    sum = +d_in1;
+    return sum * d_in2;
+}
+
+
+================================================================================
+Example: Modeling/using_float_and_double
+================================================================================
+--- README ---
+Advanced floating-point power of 2 with bounds checking and defining an helper typedefs to allow easy parsing of the IEEE-754 floating point fields.
+
+Running the design
+=================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+--- KERNEL FILE: fp_mul_pow2.c ---
+#include "fp_mul_pow2.h"
+
+#ifdef ABS
+#undef ABS
+#endif
+#define ABS(n) ((n < 0) ? -n : n)
+
+float float_mul_pow2(float x, int8_t n) {
+  float_num_t x_num, prod;
+
+  x_num.fp_num = x;
+#ifndef AESL_FP_MATH_NO_BOUNDS_TESTS
+  if (x_num.bexp == 0xFF || x_num.bexp == 0) // pass through NaN, INF & denorm
+    prod.fp_num = x_num.fp_num;
+  else if (n >= 0 && x_num.bexp >= 255 - n) { // detect and handle overflow
+    prod.sign = x_num.sign;                   //
+    prod.bexp = 0xFF;                         // +/-INF
+    prod.mant = 0;                            //
+  } else if (n < 0 &&
+             x_num.bexp <= ABS(n)) { // handle underflow (doesn't gen denorms)
+    prod.sign = x_num.sign;          //
+    prod.bexp = 0;                   // +/-ZERO
+    prod.mant = 0;                   //
+  } else
+#endif // AESL_FP_MATH_NO_BOUNDS_TESTS not defined
+  {
+    prod.sign = x_num.sign;
+    prod.bexp = x_num.bexp + n;
+    prod.mant = x_num.mant;
+  }
+  return prod.fp_num;
+}
+
+double double_mul_pow2(double x, int16_t n) {
+  double_num_t x_num, prod;
+
+  x_num.fp_num = x;
+#ifndef AESL_FP_MATH_NO_BOUNDS_TESTS
+  if (x_num.bexp == 0xFF || x_num.bexp == 0) // pass through NaN, INF & denorm
+    prod.fp_num = x_num.fp_num;
+  else if (n >= 0 && x_num.bexp >= 2047 - n) { // detect and handle overflow
+    prod.sign = x_num.sign;                    //
+    prod.bexp = 0x7FF;                         // +/-INF
+    prod.mant = 0;                             //
+  } else if (n < 0 &&
+             x_num.bexp <= ABS(n)) { // handle underflow (doesn't gen denorms)
+    prod.sign = x_num.sign;          //
+    prod.bexp = 0;                   // +/-ZERO
+    prod.mant = 0;                   //
+  } else
+#endif // AESL_FP_MATH_NO_BOUNDS_TESTS not defined
+  {
+    prod.sign = x_num.sign;
+    prod.bexp = x_num.bexp + n;
+    prod.mant = x_num.mant;
+  }
+  return prod.fp_num;
+}
+
+
+================================================================================
+Example: Modeling/using_vectors
+================================================================================
+--- README ---
+This example illustrates using Load-Compute-Store using a vector datatype.
+
+Note the following interface #prgama used:
+
+#pragma HLS pipeline
+#pragma HLS INTERFACE m_axi port=lhs offset=slave bundle=gmem0 depth=32
+#pragma HLS INTERFACE m_axi port=rhs offset=slave bundle=gmem1 depth=32
+#pragma HLS INTERFACE m_axi port=res offset=slave bundle=gmem0 depth=32
+#pragma HLS DATAFLOW
+
+--- KERNEL FILE: example.cpp ---
+#include "example.h"
+#include <iostream>
+
+template <int N, typename T> void load(T (&out)[N], const T* in) {
+#pragma HLS INLINE off
+    for (int i = 0; i < N; ++i) {
+#pragma HLS pipeline
+        out[i] = in[i];
+    }
+}
+
+template <int N, typename T> void store(T* out, const T (&in)[N]) {
+#pragma HLS INLINE off
+    for (int i = 0; i < N; ++i) {
+#pragma HLS pipeline
+        out[i] = in[i];
+    }
+}
+
+template <int N, typename T, typename S>
+void compute(T (&res)[N], const S (&lhs)[N], const S (&rhs)[N]) {
+#pragma HLS INLINE off
+    for (int i = 0; i < N; ++i) {
+#pragma HLS pipeline
+        res[i] = lhs[i] + rhs[i];
+    }
+}
+
+extern "C" void example(float16* res, const float16* lhs, const float16* rhs,
+                        int n) {
+#pragma HLS INTERFACE m_axi port = lhs offset = slave bundle = gmem0 depth = 32
+#pragma HLS INTERFACE m_axi port = rhs offset = slave bundle = gmem1 depth = 32
+#pragma HLS INTERFACE m_axi port = res offset = slave bundle = gmem0 depth = 32
+
+    for (int i = 0; i < n; ++i) {
+        float16 lhs_buf[NUM];
+        float16 rhs_buf[NUM];
+        float16 res_buf[NUM];
+
+#pragma HLS DATAFLOW
+        load(lhs_buf, lhs);
+        load(rhs_buf, rhs);
+        compute(res_buf, lhs_buf, rhs_buf);
+        store(res, res_buf);
+    }
+}
+
+
+================================================================================
+Example: Modeling/variable_bound_loops
+================================================================================
+--- README ---
+This example shows how to write a loop which has a variable bound and apply
+pragmas/directives on such a loop. 
+
+Running the Design (edit run_hls.tcl to set $hls_exec and enable specific run steps)
+=========================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+Note the following directives that are applied on the variable bounded loop:
+
+# Specified in run_hls.tcl
+set_directive_unroll loop_var/LOOP_X
+
+--- KERNEL FILE: loop_var.cpp ---
+#include "loop_var.h"
+
+dout_t loop_var(din_t A[N], dsel_t width) {
+
+    dout_t out_accum = 0;
+    dsel_t x;
+
+LOOP_X:
+    for (x = 0; x < width; x++) {
+        out_accum += A[x];
+    }
+
+    return out_accum;
+}
+
+
+================================================================================
+Example: Pipelining/Functions/function_instantiate
+================================================================================
+--- README ---
+Example C++ code for the FUNCTION_INSTANTIATE pragma in Vitis HLS
+
+Running the design (edit x_hls.tcl to run synthesis)
+=================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+--- KERNEL FILE: example.cpp ---
+char foo(char inval, char incr) {
+#pragma HLS INLINE OFF
+#pragma HLS FUNCTION_INSTANTIATE variable = incr
+    return inval + incr;
+}
+
+void top(char inval1, char inval2, char inval3, char* outval1, char* outval2,
+         char* outval3) {
+    *outval1 = foo(inval1, 0);
+    *outval2 = foo(inval2, 1);
+    *outval3 = foo(inval3, 100);
+}
+
+
+================================================================================
+Example: Pipelining/Functions/hier_func
+================================================================================
+--- README ---
+Use the pre-defined macro __SYNTHESIS__ to prevent code being synthesized. Only use the __SYNTHESIS__ 
+macro in the code to be synthesized. Do not use this macro in the test bench, because it is not obeyed
+by C simulation or C RTL co-simulation.
+
+Running the design (edit x_hls.tcl to run synthesis)
+=================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+--- KERNEL FILE: hier_func4.cpp ---
+#include "hier_func4.h"
+
+void sumsub_func(din_t* in1, din_t* in2, dint_t* outSum, dint_t* outSub) {
+    *outSum = *in1 + *in2;
+    *outSub = *in1 - *in2;
+}
+
+void shift_func(dint_t* in1, dint_t* in2, dout_t* outA, dout_t* outB) {
+    *outA = *in1 >> 1;
+    *outB = *in2 >> 2;
+}
+
+void hier_func4(din_t A, din_t B, dout_t* C, dout_t* D) {
+    dint_t apb, amb;
+
+    sumsub_func(&A, &B, &apb, &amb);
+#ifndef __SYNTHESIS__
+    FILE* fp1;
+    char filename[255];
+    sprintf(filename, "Out_apb_%03d.dat", apb);
+    fp1 = fopen(filename, "w");
+    fprintf(fp1, "%d \n", apb);
+    fclose(fp1);
+#endif
+    shift_func(&apb, &amb, C, D);
+}
+
+
+================================================================================
+Example: Pipelining/Loops/imperfect_loop
+================================================================================
+--- README ---
+The example shows an imperfect loop which does not follow the loop flatten pre-conditions. 
+
+ Running the Design (edit run_hls.tcl to set $hls_exec and enable specific run steps)
+ =========================================================
+ vitis-run --mode hls --tcl run_hls.tcl
+
+--- KERNEL FILE: loop_imperfect.cpp ---
+#include "loop_imperfect.h"
+
+void loop_imperfect(din_t A[N], dout_t B[N]) {
+
+    int i, j;
+    dint_t acc;
+
+LOOP_I:
+    for (i = 0; i < 20; i++) {
+        acc = 0;
+    LOOP_J:
+        for (j = 0; j < 20; j++) {
+            acc += A[j] * j;
+        }
+        if (i % 2 == 0)
+            B[i] = acc / 20;
+        else
+            B[i] = 0;
+    }
+}
+
+
+================================================================================
+Example: Pipelining/Loops/perfect_loop
+================================================================================
+--- README ---
+The example shows the correct coding guidlenes for nested loops to be flattened automatically by the tool
+
+loop_perfect.h
+loop_perfect.cpp
+loop_perfect_test.cpp
+run_hls.tcl
+result.golden.dat
+ README
+
+ Running the Design (edit run_hls.tcl to set $hls_exec and enable specific run steps)
+ =========================================================
+ vitis-run --mode hls --tcl run_hls.tcl
+
+--- KERNEL FILE: loop_perfect.cpp ---
+#include "loop_perfect.h"
+
+void loop_perfect(din_t A[N], dout_t B[N]) {
+    int i, j;
+    dint_t acc;
+
+LOOP_I:
+    for (i = 0; i < 20; i++) {
+    LOOP_J:
+        for (j = 0; j < 20; j++) {
+            if (j == 0)
+                acc = 0;
+            acc += A[j] * j;
+            if (j == 19) {
+                if (i % 2 == 0)
+                    B[i] = acc / 20;
+                else
+                    B[i] = 0;
+            }
+        }
+    }
+}
+
+
+================================================================================
+Example: Pipelining/Loops/pipelined_loop
+================================================================================
+--- README ---
+This example shows different variations of the Loop pipelining (inner-most loop and outer-most loop) 
+
+ Running the Design (edit run_hls.tcl to set $hls_exec and enable specific run steps)
+ =========================================================
+ vitis-run --mode hls --tcl run_hls.tcl
+
+--- KERNEL FILE: loop_pipeline.cpp ---
+#include "loop_pipeline.h"
+
+dout_t loop_pipeline(din_t A[N]) {
+
+    int i, j;
+    static dout_t acc;
+
+LOOP_I:
+    for (i = 0; i < 20; i++) {
+    LOOP_J:
+        for (j = 0; j < 20; j++) {
+            acc += A[j] * i;
+        }
+    }
+
+    return acc;
+}
+
+
+================================================================================
+Example: Pipelining/Loops/using_free_running_pipeline
+================================================================================
+--- README ---
+This example uses a FRP (free-ruuning pipeline) mode to configure the pipeline architecture using a global command which is useful in reducing control logic fanout in vivado.
+
+The Pipeline architecture can be implemented in 3 modes:
+- FRP (free-ruuning pipeline)
+- FLP (flushable pipeline)
+- STP (stall pipeline)
+
+ Running the Design (edit run_hls.tcl to set $hls_exec and enable specific run steps)
+ =========================================================
+ vitis-run --mode hls --tcl run_hls.tcl
+
+ Running the design using python script
+ =====================================================
+ vitis -s run.py
+
+--- KERNEL FILE: free_pipe_mult.cpp ---
+#include "free_pipe_mult.h"
+#include <iostream>
+
+int accumulate(data_t A[]) {
+#pragma HLS inline off
+
+    data_t acc = 0.0;
+    for (int i = 0; i < SZ; i++) {
+        std::cout << "A: " << A[i] << std::endl;
+        acc += A[i];
+    }
+    return acc;
+}
+
+void process(hls::stream<data_t>& strm_in, hls::stream<data_t>& strm_out) {
+#pragma HLS inline off
+
+    for (int i = 0; i < SZ; i++) {
+        data_t tmp;
+        tmp = strm_in.read();
+        strm_out.write(tmp);
+    }
+}
+
+void inner(data_t A[SZ], hls::stream<data_t>& stream_in, data_t* out) {
+#pragma HLS pipeline
+
+#pragma HLS INTERFACE ap_fifo port = stream_in
+    data_t regA[SZ];
+#pragma HLS ARRAY_PARTITION variable = regA complete
+    for (int i = 0; i < SZ; i++) {
+        data_t tmp;
+        tmp = stream_in.read();
+        regA[i] = A[i] + tmp;
+    }
+
+    *out = accumulate(regA);
+}
+
+void free_pipe_mult(data_t A[SZ], hls::stream<data_t>& strm, data_t& out) {
+#pragma HLS DATAFLOW
+#pragma HLS INTERFACE ap_fifo port = strm
+
+    data_t B[SZ];
+
+    for (int i = 0; i < SZ; i++)
+        B[i] = A[i] + i;
+
+    hls::stream<data_t> strm_out;
+    process(strm, strm_out);
+    inner(B, strm_out, &out);
+}
+
+
+================================================================================
+Example: Task_level_Parallelism/Control_driven/Channels/simple_fifos
+================================================================================
+--- README ---
+This example shows how to use FIFOs as the channel type.
+
+Running the Design (edit run_hls.tcl to set $hls_exec and enable specific run steps)
+=========================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+# A config_dataflow directive is used to select FIFOs as the default channel type.
+
+--- KERNEL FILE: diamond.cpp ---
+#include "diamond.h"
+
+void diamond(data_t vecIn[N], data_t vecOut[N]) {
+    data_t c1[N], c2[N], c3[N], c4[N];
+#pragma HLS dataflow
+    funcA(vecIn, c1, c2);
+    funcB(c1, c3);
+    funcC(c2, c4);
+    funcD(c3, c4, vecOut);
+}
+
+void funcA(data_t* in, data_t* out1, data_t* out2) {
+#pragma HLS inline off
+Loop0:
+    for (int i = 0; i < N; i++) {
+#pragma HLS pipeline
+        data_t t = in[i] * 3;
+        out1[i] = t;
+        out2[i] = t;
+    }
+}
+
+void funcB(data_t* in, data_t* out) {
+#pragma HLS inline off
+Loop0:
+    for (int i = 0; i < N; i++) {
+#pragma HLS pipeline
+        out[i] = in[i] + 25;
+    }
+}
+
+void funcC(data_t* in, data_t* out) {
+#pragma HLS inline off
+Loop0:
+    for (data_t i = 0; i < N; i++) {
+#pragma HLS pipeline
+        out[i] = in[i] * 2;
+    }
+}
+
+void funcD(data_t* in1, data_t* in2, data_t* out) {
+#pragma HLS inline off
+Loop0:
+    for (int i = 0; i < N; i++) {
+#pragma HLS pipeline
+        out[i] = in1[i] + in2[i] * 2;
+    }
+}
+
+
+================================================================================
+Example: Task_level_Parallelism/Control_driven/Channels/using_fifos
+================================================================================
+--- README ---
+This example shows how to use FIFOs instead of the default PIPOs as the channel type.
+
+Running the Design (edit run_hls.tcl to set $hls_exec and enable specific run steps)
+=========================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+This is done by changing the default channel type via the TCL config_dataflow 
+directive in the run_hls.tcl file.
+
+--- KERNEL FILE: diamond.cpp ---
+#include "diamond.h"
+#define NUM_WORDS 16
+extern "C" {
+
+void diamond(vecOf16Words* vecIn, vecOf16Words* vecOut, int size) {
+// The depth setting is required for pointer to array in the interface.
+#pragma HLS INTERFACE m_axi port = vecIn depth = 32
+#pragma HLS INTERFACE m_axi port = vecOut depth = 32
+
+    hls::stream<vecOf16Words> c0, c1, c2, c3, c4, c5;
+    assert(size % 16 == 0);
+
+#pragma HLS dataflow
+    load(vecIn, c0, size);
+    compute_A(c0, c1, c2, size);
+    compute_B(c1, c3, size);
+    compute_C(c2, c4, size);
+    compute_D(c3, c4, c5, size);
+    store(c5, vecOut, size);
+}
+}
+
+void load(vecOf16Words* in, hls::stream<vecOf16Words>& out, int size) {
+Loop_Ld:
+    for (int i = 0; i < size; i++) {
+#pragma HLS performance target_ti = 32
+#pragma HLS LOOP_TRIPCOUNT max = 32
+        out.write(in[i]);
+    }
+}
+
+void compute_A(hls::stream<vecOf16Words>& in, hls::stream<vecOf16Words>& out1,
+               hls::stream<vecOf16Words>& out2, int size) {
+Loop_A:
+    for (int i = 0; i < size; i++) {
+#pragma HLS performance target_ti = 32
+#pragma HLS LOOP_TRIPCOUNT max = 32
+        vecOf16Words t = in.read();
+        out1.write(t * 3);
+        out2.write(t * 3);
+    }
+}
+
+void compute_B(hls::stream<vecOf16Words>& in, hls::stream<vecOf16Words>& out,
+               int size) {
+Loop_B:
+    for (int i = 0; i < size; i++) {
+#pragma HLS performance target_ti = 32
+#pragma HLS LOOP_TRIPCOUNT max = 32
+        out.write(in.read() + 25);
+    }
+}
+
+void compute_C(hls::stream<vecOf16Words>& in, hls::stream<vecOf16Words>& out,
+               int size) {
+Loop_C:
+    for (data_t i = 0; i < size; i++) {
+#pragma HLS performance target_ti = 32
+#pragma HLS LOOP_TRIPCOUNT max = 32
+        out.write(in.read() * 2);
+    }
+}
+void compute_D(hls::stream<vecOf16Words>& in1, hls::stream<vecOf16Words>& in2,
+               hls::stream<vecOf16Words>& out, int size) {
+Loop_D:
+    for (data_t i = 0; i < size; i++) {
+#pragma HLS performance target_ti = 32
+#pragma HLS LOOP_TRIPCOUNT max = 32
+        out.write(in1.read() + in2.read());
+    }
+}
+
+void store(hls::stream<vecOf16Words>& in, vecOf16Words* out, int size) {
+Loop_St:
+    for (int i = 0; i < size; i++) {
+#pragma HLS performance target_ti = 32
+#pragma HLS LOOP_TRIPCOUNT max = 32
+        out[i] = in.read();
+    }
+}
+
+
+================================================================================
+Example: Task_level_Parallelism/Control_driven/Channels/using_pipos
+================================================================================
+--- README ---
+This example shows how to use the default PIPOs as the channel type.
+
+Running the Design (edit run_hls.tcl to set $hls_exec and enable specific run steps)
+=========================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+--- KERNEL FILE: diamond.cpp ---
+#include "diamond.h"
+
+void diamond(data_t vecIn[N], data_t vecOut[N]) {
+    data_t c1[N], c2[N], c3[N], c4[N];
+#pragma HLS dataflow
+    funcA(vecIn, c1, c2);
+    funcB(c1, c3);
+    funcC(c2, c4);
+    funcD(c3, c4, vecOut);
+}
+
+void funcA(data_t* in, data_t* out1, data_t* out2) {
+Loop0:
+    for (int i = 0; i < N; i++) {
+#pragma HLS pipeline rewind
+#pragma HLS unroll factor = 2
+        data_t t = in[i] * 3;
+        out1[i] = t;
+        out2[i] = t;
+    }
+}
+
+void funcB(data_t* in, data_t* out) {
+Loop0:
+    for (int i = 0; i < N; i++) {
+#pragma HLS pipeline rewind
+#pragma HLS unroll factor = 2
+        out[i] = in[i] + 25;
+    }
+}
+
+void funcC(data_t* in, data_t* out) {
+Loop0:
+    for (data_t i = 0; i < N; i++) {
+#pragma HLS pipeline rewind
+#pragma HLS unroll factor = 2
+        out[i] = in[i] * 2;
+    }
+}
+
+void funcD(data_t* in1, data_t* in2, data_t* out) {
+Loop0:
+    for (int i = 0; i < N; i++) {
+#pragma HLS pipeline rewind
+#pragma HLS unroll factor = 2
+        out[i] = in1[i] + in2[i] * 2;
+    }
+}
+
+
+================================================================================
+Example: Task_level_Parallelism/Control_driven/Channels/using_stream_of_blocks
+================================================================================
+--- README ---
+This example uses the same design as using_pipos and using_fifos designs to illustrate how the
+same design can be converted to use stream of blocks (SOB) as the channel type.
+
+Running the Design (edit run_hls.tcl to set $hls_exec and enable specific run steps)
+=========================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+For optimal performance with stream of blocks, the application should exhibit the following behavior:
+   * when you have some data that is written and read partially sequentially (which can be streamed) and 
+     partially randomly (which requires direct access). This is where this type of synchronization flexibility really helps.
+   * Another case is when you have blocks that may or may not be generated, like for example, if in the diamond example, 
+     it requires some data packets (modeled by SOB blocks) to be handled by funcB and some by funcC, irregularly. 
+     This cannot be done with PIPOs.
+
+--- KERNEL FILE: diamond.cpp ---
+#include "diamond.h"
+
+void diamond(hls::stream<data_t>& vecIn, hls::stream<data_t>& vecOut) {
+#pragma HLS INTERFACE ap_ctrl_chain port = return
+
+    hls::stream_of_blocks<block_data_t> c1, c2, c3, c4;
+
+#pragma HLS dataflow
+    funcA(vecIn, c1, c2);
+    funcB(c1, c3);
+    funcC(c2, c4);
+    funcD(c3, c4, vecOut);
+}
+
+void funcA(hls::stream<data_t>& in, hls::stream_of_blocks<block_data_t>& out1,
+           hls::stream_of_blocks<block_data_t>& out2) {
+#pragma HLS INLINE off
+
+funcA_Loop0:
+    for (int i = 0; i < N / NUM_BLOCKS; i++) {
+#pragma HLS pipeline II = 10
+
+        // Obtain write locks for the two output channels
+        hls::write_lock<block_data_t> out1L(out1);
+        hls::write_lock<block_data_t> out2L(out2);
+
+        // Read a block of 10 data items from the stream
+    funcA_Loop1:
+        for (unsigned int j = 0; j < NUM_BLOCKS; j++) {
+            data_t t = in.read() * 3;
+            out1L[j] = t;
+            out2L[j] = t;
+        }
+    }
+}
+
+void funcB(hls::stream_of_blocks<block_data_t>& in,
+           hls::stream_of_blocks<block_data_t>& out) {
+#pragma HLS INLINE off
+
+funcB_Loop0:
+    for (int i = 0; i < N / NUM_BLOCKS; i++) {
+#pragma HLS pipeline II = 5
+
+        // Obtain a read lock on the input channel
+        // and a write lock for the output channel
+        hls::read_lock<block_data_t> inL(in);
+        hls::write_lock<block_data_t> outL(out);
+    funcB_Loop1:
+        for (unsigned int j = 0; j < NUM_BLOCKS; j++)
+            outL[j] = inL[j] + 25;
+    }
+}
+
+void funcC(hls::stream_of_blocks<block_data_t>& in,
+           hls::stream_of_blocks<block_data_t>& out) {
+#pragma HLS INLINE off
+
+Loop0:
+    for (data_t i = 0; i < N / NUM_BLOCKS; i++) {
+#pragma HLS pipeline II = 5
+
+        // Obtain a read lock on the input channel
+        // and a write lock for the output channel
+        hls::read_lock<block_data_t> inL(in);
+        hls::write_lock<block_data_t> outL(out);
+        for (unsigned int j = 0; j < NUM_BLOCKS; ++j)
+            outL[j] = inL[j] * 2;
+    }
+}
+
+void funcD(hls::stream_of_blocks<block_data_t>& in1,
+           hls::stream_of_blocks<block_data_t>& in2, hls::stream<data_t>& out) {
+#pragma HLS INLINE off
+
+Loop0:
+    for (int i = 0; i < N / NUM_BLOCKS; i++) {
+#pragma HLS pipeline II = 10
+
+        // Obtain two read locks on the input channels
+        hls::read_lock<block_data_t> in1L(in1);
+        hls::read_lock<block_data_t> in2L(in2);
+        for (unsigned int j = 0; j < NUM_BLOCKS; ++j)
+            out.write(in1L[j] + in2L[j] * 2);
+    }
+}
+
+
+================================================================================
+Example: Task_level_Parallelism/Control_driven/Patterns/input_bypass
+================================================================================
+--- README ---
+This example shows a common issue with in a DATAFLOW Pipeline where the input arguments bypass the first function which causes performance degradation in the DATAFLOW pipeline. The example shows both the problem and solution
+
+Running the Design (edit run_hls.tcl to set $hls_exec and enable specific run steps)
+=========================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+--- KERNEL FILE: dut_sol.cpp ---
+void add_kernel(int tmp1[128], int tmp2[128], int tmp3[128]) {
+
+    int buff[127];
+    for (int i = 0; i < 128; i++) {
+        tmp3[i] = tmp1[i] + tmp2[i];
+    }
+}
+
+void Double_pass(int tmp2[128], int tmp1[128], int tmp4[128], int tmp5[128]) {
+
+    int buff[127];
+    for (int i = 0; i < 128; i++) {
+        tmp4[i] = tmp1[i];
+        tmp5[i] = tmp2[i];
+    }
+}
+
+void pass(int a[128], int b[128], int tmp1[128], int tmp2[128]) {
+    for (int i = 0; i < 128; i++) {
+        tmp1[i] = a[i];
+        tmp2[i] = b[i];
+    }
+}
+
+void dut(int a[128], int b[128], int tmp3[128]) {
+#pragma HLS DATAFLOW
+
+    int tmp1[128], tmp2[128], tmp4[128];
+    int tmp5[128];
+
+    pass(a, b, tmp1, tmp2);
+    Double_pass(tmp2, tmp1, tmp4, tmp5);
+    add_kernel(tmp4, tmp5, tmp3);
+}
+
+
+================================================================================
+Example: Task_level_Parallelism/Control_driven/Patterns/middle_bypass
+================================================================================
+--- README ---
+This is a common DATAFLOW issue, where the channels inside the DATAFLOW are not feed-forward and bypass the tasks which causes a degradation in performance. This example shows both the problem and solution 
+
+ Running the Design (edit run_hls.tcl to set $hls_exec and enable specific run steps)
+ =========================================================
+ vitis-run --mode hls --tcl run_hls.tcl
+
+--- KERNEL FILE: dut_sol.cpp ---
+void bypass(int tmp1[128], int tmp2[128], int tmp3[128]) {
+
+    for (int i = 0; i < 128; i++) {
+        tmp3[i] = tmp1[i] + tmp2[i];
+    }
+}
+
+void pass(int tmp2[128], int tmp4[128], int tmp1[128], int tmp5[128]) {
+    //	static int j;
+
+    int buff[127];
+    for (int i = 0; i < 128; i++) {
+
+        tmp4[i] = tmp2[i];
+        tmp5[i] = tmp1[i];
+    }
+}
+
+void double_pass(int a[128], int b[128], int tmp1[128], int tmp2[128]) {
+    static int j;
+    for (int i = 0; i < 128; i++) {
+        j++;
+        tmp1[i] = a[i];
+        tmp2[i] = b[i];
+    }
+}
+
+void dut(int a[128], int b[128], int tmp3[128]) {
+#pragma HLS DATAFLOW
+
+    int tmp1[128], tmp2[128], tmp4[128], tmp5[128];
+
+    double_pass(a, b, tmp1, tmp2);
+    pass(tmp2, tmp4, tmp1, tmp5);
+    bypass(tmp5, tmp4, tmp3);
+}
+
+
+================================================================================
+Example: Task_level_Parallelism/Control_driven/Patterns/output_bypass
+================================================================================
+--- README ---
+This is a common DATAFLOW issue, where the channels inside the DATAFLOW does not follow the feed-forward which causes degradation in performance. This example shows both the problem and solution 
+
+Running the Design (edit run_hls.tcl to set $hls_exec and enable specific run steps)
+=========================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+--- KERNEL FILE: dut_sol.cpp ---
+void pass(int tmp3[128], int tmp2[128], int tmp1[128], int b[128]) {
+    for (int i = 0; i < 128; i++) {
+        b[i] = tmp1[i];
+        tmp2[i] = tmp3[i];
+    }
+}
+
+void split(int a[128], int tmp1[128], int tmp2[128]) {
+    static int j;
+    for (int i = 0; i < 128; i++) {
+        j++;
+        tmp1[i] = a[i];
+        tmp2[i] = a[i];
+    }
+}
+
+void dut(int a[128], int b[128], int tmp2[128]) {
+#pragma HLS DATAFLOW
+
+    int tmp1[128], tmp3[128];
+
+    split(a, tmp1, tmp3);
+    pass(tmp3, tmp2, tmp1, b);
+}
+
+
+================================================================================
+Example: Task_level_Parallelism/Control_driven/directio/ap_hs
+================================================================================
+--- README ---
+Example C++ code showing usage of Direct I/O stream in Vitis HLS
+
+dut.cpp  
+dut.h
+tb.cpp  
+run_hls.tcl  
+run.py  
+config.cfg   
+README  
+
+Running the design using Python Script 
+=================================================
+vitis -s run.py
+
+Running the design (edit run_hls.tcl to run synthesis)
+=================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+--- KERNEL FILE: dut.cpp ---
+#include "dut.h"
+
+void krnl_stream_vdatamover(hls::stream<pkt> &in,
+                      hls::stream<pkt> &out,
+					            int mem[DATA],
+                      hls::ap_hs<int> &reset_value, // output
+                      hls::ap_hs<int> &reset_myCounter // input 
+                      ) {
+#pragma HLS interface mode=axis port=in
+#pragma HLS interface mode=axis port=out
+#pragma HLS INTERFACE m_axi port = mem 
+
+static int counter; 
+bool eos = false;
+
+pkt t_out;
+for(int i=0;i<DATA;i++)
+{
+  ap_uint<DWIDTH> tmpOut;
+      pkt t1 = in.read();
+    if(reset_myCounter.valid())
+    {
+      int reset = reset_myCounter.read();
+      if(reset == 1)
+      {
+        ap_uint<DWIDTH> i1 = t1.data;
+        tmpOut = i1+mem[i];
+        t_out.data = tmpOut;
+        t_out.last = t1.last;
+        out.write(t_out);
+        counter =0;
+        reset_value.write(counter);
+        break;
+      }
+    }
+
+    if(counter==threshold)
+    {
+      reset_value.write(counter);
+      break;
+    }
+    counter++;
+    // Packet for output
+    
+    reset_value.write(counter);
+    // Reading data from input packet
+    ap_uint<DWIDTH> in1 = t1.data;
+
+    // Vadd operation
+     tmpOut = in1+mem[i];
+
+    // Setting data and configuration to output packet
+    t_out.data = tmpOut;
+    t_out.last = t1.last;
+    t_out.keep = -1; // Enabling all bytes
+
+    // Writing packet to output stream
+    out.write(t_out);
+
+    if (t1.last) {
+      eos = true;
+    }
+}
+ }
+
+
+================================================================================
+Example: Task_level_Parallelism/Data_driven/using_directio_none_in_tasks
+================================================================================
+--- README ---
+Example C++ code showing usage of Direct I/O stream in Vitis HLS
+
+adder_top.cpp  
+adder_top.h
+adder_tb.cpp  
+run_hls.tcl  
+run.py  
+config.cfg  
+README  
+
+Running the design using Python Script 
+=================================================
+vitis -s run.py
+
+Running the design (edit run_hls.tcl to run synthesis)
+=================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+--- KERNEL FILE: adder_top.cpp ---
+#include "adder_top.h"
+void addInputs(mystream_in &in, mystream_in &dinB,stream_vld_in&vldIn,mystream_out &dout_Y,stream_vld_out & vldOut)
+{
+            #pragma HLS pipeline II=1
+            int var = vldIn.read();
+            if(var ==0)
+            {
+              vldOut.write(var);
+              return;
+            }
+            int tmp1 =  in.read(); // Blocking_read
+            int tmp2 =  dinB.read(); // Blocking read
+            int out = tmp1+ tmp2;
+            dout_Y.write(out);
+            vldOut.write(1);
+    }
+
+void adder_top(mystream_in &din_A, mystream_in &din_B, mystream_out &dout_Y,stream_vld_in &vldIn, stream_vld_out & vldOut) {
+
+    hls_thread_local hls::task t1(addInputs,din_A,din_B,vldIn,dout_Y,vldOut);
+
+}
+
+
+================================================================================
+Example: Task_level_Parallelism/Data_driven/using_maxi_in_tasks
+================================================================================
+--- README ---
+This example shows using MAXI in hls::task
+
+Running the Design 
+=========================================================
+vitis -s run.py
+
+Running the Design 
+=========================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+--- KERNEL FILE: dut.cpp ---
+#include "ap_axi_sdata.h"
+#include "ap_int.h"
+#include "hls_stream.h"
+#include "hls_print.h"
+#include "hls_task.h"
+
+void process_23(hls::stream<int>& in, hls::stream<int>& out) {
+#pragma HLS INLINE off
+    static int state = 0;
+    static int val;
+
+    in.read(val);
+    val = val * 23;
+    out.write(val);
+}
+
+void process_11(hls::stream<int>& in, hls::stream<int>& out) {
+#pragma HLS INLINE off
+    static int state = 0;
+    static int val;
+
+    in.read(val);
+    val = val * 11;
+    out.write(val);
+}
+
+void write_process(hls::stream<int>& in, hls::stream<int>& out, int* mem) {
+    int val;
+    static int addr = 0;
+
+    in.read(val);
+    if (addr >= 32)
+        addr = 0;
+    mem[addr] = val;
+    addr++;
+    val = mem[addr - 1];
+    out.write(val);
+}
+
+extern "C" {
+
+void stable_pointer(int* mem, hls::stream<int>& in, hls::stream<int>& out) {
+#pragma HLS DATAFLOW
+#pragma HLS INTERFACE mode = m_axi bundle = gmem depth =                       \
+    256 max_read_burst_length = 16 max_widen_bitwidth =                        \
+        512 max_write_burst_length = 16 num_read_outstanding =                 \
+            16 num_write_outstanding = 16 port = mem
+#pragma HLS stable variable = mem
+
+    hls_thread_local hls::stream<int> int_fifo("int_fifo");
+#pragma HLS STREAM depth = 512 type = fifo variable = int_fifo
+    hls_thread_local hls::stream<int> int_fifo2("int_fifo2");
+#pragma HLS STREAM depth = 512 type = fifo variable = int_fifo2
+
+    hls_thread_local hls::task t1(process_23, in, int_fifo);
+    hls_thread_local hls::task t2(process_11, int_fifo, int_fifo2);
+    hls_thread_local hls::task t3(write_process, int_fifo2, out, mem);
+}
+
+} // extern "C"
+
+

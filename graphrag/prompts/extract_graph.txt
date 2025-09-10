@@ -1,0 +1,464 @@
+
+-Goal-
+Given a text document that is potentially relevant to this activity and a list of entity types, identify all entities of those types from the text and all relationships among the identified entities.
+
+-Steps-
+1. Identify all entities. For each identified entity, extract the following information:
+- entity_name: Name of the entity, capitalized
+- entity_type: One of the following types: [function, directive, pragma, data type, library, hardware module, interface protocol, memory model, algorithm, code construct, processing element, pipeline option, loop, synthesis tool, hardware resource, IP core]
+- entity_description: Comprehensive description of the entity's attributes and activities
+Format each entity as ("entity"{tuple_delimiter}<entity_name>{tuple_delimiter}<entity_type>{tuple_delimiter}<entity_description>)
+
+2. From the entities identified in step 1, identify all pairs of (source_entity, target_entity) that are *clearly related* to each other.
+For each pair of related entities, extract the following information:
+- source_entity: name of the source entity, as identified in step 1
+- target_entity: name of the target entity, as identified in step 1
+- relationship_description: explanation as to why you think the source entity and the target entity are related to each other
+- relationship_strength: an integer score between 1 to 10, indicating strength of the relationship between the source entity and target entity
+Format each relationship as ("relationship"{tuple_delimiter}<source_entity>{tuple_delimiter}<target_entity>{tuple_delimiter}<relationship_description>{tuple_delimiter}<relationship_strength>)
+
+3. Return output in English as a single list of all the entities and relationships identified in steps 1 and 2. Use **{record_delimiter}** as the list delimiter.
+
+4. If you have to translate into English, just translate the descriptions, nothing else!
+
+5. When finished, output {completion_delimiter}.
+
+-Examples-
+######################
+
+Example 1:
+
+entity_types: [function, directive, pragma, data type, library, hardware module, interface protocol, memory model, algorithm, code construct, processing element, pipeline option, loop, synthesis tool, hardware resource, IP core]
+text:
+val3)
+{{
+*outval1 = func_sub(inval1, 1);
+*outval2 = func_sub(inval2, 2);
+*outval3 = func_sub(inval3, 3);
+}}
+
+Using the directive as shown in the example section below results in three versions of function
+func_sub, each independently optimized for variable incr.
+Syntax
+set_directive_function_instantiate <location> <variable>
+
+• <location> is the location (in the format function[/region label]) where the
+instances of a function are to be made unique.
+• <variable> specifies the function argument to be specified as a constant in the various
+function instantiations.
+Options
+This command has no options.
+Examples
+For the example code shown above, the following Tcl (or pragma placed in function func_sub)
+allows each instance of function func_sub to be independently optimized with respect to input
+incr.
+set_directive_inline -off func_sub
+set_directive_function_instantiate func_sub incr
+
+See Also
+• pragma HLS function_instantiate
+• set_directive_allocation
+• set_directive_inline
+
+Section IV: Vitis HLS Command Reference
+Chapter 23: Optimization Directives
+
+set_directive_inline
+Description
+Removes a function as a separate entity in the RTL hierarchy. After inlining, the function is
+dissolved into the calling function, and no longer appears as a separate level of hierarchy.
+IMPORTANT! Inlining a child function also dissolves any pragmas or directives applied to that function. In
+Vitis HLS, any directives applied in the child context are ignored.
+
+In some cases, inlining a function allows operations within the function to be shared and
+optimized more effectively with the calling function. However, an inlined function cannot be
+shared or reused, so if the parent function calls the inlined function multiple times, this can
+increase the area and resource utilization.
+By default, inlining is only performed on the next level of function hierarchy.
+Syntax
+set_directive_inline [OPTIONS] <location>
+
+• <location> is the location (in the format function[/label]) where inlining is to be
+performed.
+Options
+• -off: By default, Vitis HLS performs inlining of smaller functions in the code. Using the -off
+option disables inlining for the specified function.
+• -recursive: By default, only one level of function inlining is performed. The functions
+within the specified function are not inlined. The -recursive option inlines all functions
+recursively within the specified function hierarchy.
+Examples
+The following example inlines function func_sub1, but no sub-functions called by func_sub1.
+set_directive_inline func_sub1
+
+This example inlines function func_sub1, recursively down the hierarchy, except function
+func_sub2:
+set_directive_inline -recursive func_sub1
+set_directive_inline -off func_sub2
+
+Section IV: Vitis HLS Command Reference
+Chapter 23: Optimization Directives
+
+See Also
+• pragma HLS inline
+• set_directive_allocation
+
+set_directive_interface
+Description
+Specifies how RTL ports are created from the function description during interface synthesis. For
+more information, see Defining Interfaces. The ports in the RTL implementation are derived from:
+• Any function-level protocol that is specified.
+• Function arguments and return.
+TIP: Global variables required on the interface must be explicitly defined as an argument of the top-level
+function as described in Global Variables. If a global variable is accessed, but all read and write operations
+are local to the design, the resource is created in the design. There is no need for an I/O port in the RTL.
+
+Function-level handshakes:
+• Control when the function starts operation.
+• Indicate when function operation:
+○
+
+Ends
+
+○
+
+Is idle
+
+○
+
+Is ready for new inputs
+
+The implementation of a function-level protocol:
+• Is controlled by modes ap_ctrl_chain, ap_ctrl_hs, or ap_ctrl_none.
+• Requires only the top-level function name.
+Each function argument can be specified to have its own I/O protocol (such as valid handshake
+or acknowledge handshake).
+TIP: The Vitis HLS tool automatically determines the I/O protocol used by any sub-functions. You cannot
+specify the INTERFACE pragma or directive for sub-functions.
+
+Syntax
+set_directive_interface [OPTIONS] <location> <port>
+
+Section IV: Vitis HLS Command Reference
+Chapter 23: Optimization Directives
+
+• <location> is the location (in the format function[/label]) where the function
+interface or registered output is to be specified.
+• <port> is the parameter (function argument) for which the interface has to be synthesized.
+The port name is not required when block control modes are specified: ap_ctrl_chain,
+ap_ctrl_hs, or ap_ctrl_none.
+Options
+TIP: Many of the options specified below have global values that are defined in the config_interface
+command. Set local values for the interface defined here to override the global values.
+
+• -bundle <string>: By default, the HLS tool groups or bundles function arguments with
+compatible options into interface ports in the RTL code. All AXI4-Lite (s_axilite) interfaces
+are bundled into a single AXI4-Lite port whenever possible. Similarly, all function arguments
+specified as an AXI4 (m_axi) interface are bundled into a single AXI4 port by default. All
+interface ports with compatible options, such as mode, offset, and bundle, are grouped
+into a single interface port. The port name is derived automatically from a combination of the
+mode and bundle, or is named as specified by -name.
+IMPORTANT! When specifying the bundle name you should use all lower-case characters.
+
+• -clock <string>: By default, the AXI4-Lite interface clock is
+------------------------
+output:
+("entity"{tuple_delimiter}SET_DIRECTIVE_FUNCTION_INSTANTIATE{tuple_delimiter}directive{tuple_delimiter}A directive in Vitis HLS that creates multiple unique instances of a function optimized independently based on a specified function argument treated as a constant. It takes a location and a variable as parameters to specify where and how the function instances are created. It enables optimization of function instances with respect to different constant inputs.)
+{record_delimiter}
+("entity"{tuple_delimiter}FUNC_SUB{tuple_delimiter}function{tuple_delimiter}A function used in example code that is instantiated multiple times with different constant arguments to enable independent optimization of each instance.)
+{record_delimiter}
+("entity"{tuple_delimiter}SET_DIRECTIVE_INLINE{tuple_delimiter}directive{tuple_delimiter}A directive in Vitis HLS that removes a function as a separate entity in the RTL hierarchy by inlining it into the calling function. Inlining dissolves the function and any pragmas or directives applied to it, potentially allowing better optimization but increasing area if the function is called multiple times. Supports options like -off to disable inlining and -recursive to inline all functions recursively within a hierarchy.)
+{record_delimiter}
+("entity"{tuple_delimiter}SET_DIRECTIVE_INTERFACE{tuple_delimiter}directive{tuple_delimiter}A directive in Vitis HLS that specifies how RTL ports are created from function descriptions during interface synthesis. It controls the interface protocol, port bundling, and clock settings for function arguments and top-level functions. It supports options like -bundle to group compatible function arguments into interface ports and -clock to specify the interface clock.)
+{record_delimiter}
+("entity"{tuple_delimiter}PRAGMA_HLS_FUNCTION_INSTANTIATE{tuple_delimiter}pragma{tuple_delimiter}A pragma related to function instantiation in Vitis HLS, used to control function instance creation similarly to the set_directive_function_instantiate directive.)
+{record_delimiter}
+("entity"{tuple_delimiter}SET_DIRECTIVE_ALLOCATION{tuple_delimiter}directive{tuple_delimiter}A directive referenced as related to function instantiation and inlining, likely used to control resource allocation in Vitis HLS synthesis.)
+{record_delimiter}
+("entity"{tuple_delimiter}PRAGMA_HLS_INLINE{tuple_delimiter}pragma{tuple_delimiter}A pragma related to function inlining in Vitis HLS, controlling whether functions are inlined or kept as separate entities in the RTL hierarchy.)
+{record_delimiter}
+("entity"{tuple_delimiter}FUNCTION_LEVEL_PROTOCOL{tuple_delimiter}interface protocol{tuple_delimiter}Protocols controlling function-level handshakes in Vitis HLS, including modes like ap_ctrl_chain, ap_ctrl_hs, and ap_ctrl_none, which manage function start, end, idle, and readiness signals during interface synthesis.)
+{record_delimiter}
+("entity"{tuple_delimiter}AXI4_LITE_INTERFACE{tuple_delimiter}interface protocol{tuple_delimiter}An interface protocol used in Vitis HLS for lightweight AXI4 communication, often bundled into a single port for function arguments with compatible options.)
+{record_delimiter}
+("entity"{tuple_delimiter}AXI4_INTERFACE{tuple_delimiter}interface protocol{tuple_delimiter}An interface protocol used in Vitis HLS for AXI4 communication, typically bundled into a single port for function arguments with compatible options.)
+{record_delimiter}
+("relationship"{tuple_delimiter}SET_DIRECTIVE_FUNCTION_INSTANTIATE{tuple_delimiter}FUNC_SUB{tuple_delimiter}The directive set_directive_function_instantiate is used to create multiple optimized instances of the function func_sub, each with a different constant argument, enabling independent optimization of each instance.{tuple_delimiter}10)
+{record_delimiter}
+("relationship"{tuple_delimiter}SET_DIRECTIVE_INLINE{tuple_delimiter}FUNC_SUB{tuple_delimiter}The set_directive_inline directive can be applied to functions like func_sub to inline them into calling functions, removing them as separate RTL hierarchy entities and potentially optimizing resource sharing.{tuple_delimiter}8)
+{record_delimiter}
+("relationship"{tuple_delimiter}PRAGMA_HLS_FUNCTION_INSTANTIATE{tuple_delimiter}SET_DIRECTIVE_FUNCTION_INSTANTIATE{tuple_delimiter}The pragma HLS function_instantiate is related to and provides similar functionality as the set_directive_function_instantiate directive for controlling function instantiation in Vitis HLS.{tuple_delimiter}9)
+{record_delimiter}
+("relationship"{tuple_delimiter}PRAGMA_HLS_INLINE{tuple_delimiter}SET_DIRECTIVE_INLINE{tuple_delimiter}The pragma HLS inline is related to the set_directive_inline directive, both controlling function inlining behavior in Vitis HLS synthesis.{tuple_delimiter}9)
+{record_delimiter}
+("relationship"{tuple_delimiter}SET_DIRECTIVE_INTERFACE{tuple_delimiter}FUNCTION_LEVEL_PROTOCOL{tuple_delimiter}The set_directive_interface directive controls the implementation of function-level protocols such as ap_ctrl_chain, ap_ctrl_hs, and ap_ctrl_none, which manage handshakes and control signals for function operation in RTL interfaces.{tuple_delimiter}10)
+{record_delimiter}
+("relationship"{tuple_delimiter}SET_DIRECTIVE_INTERFACE{tuple_delimiter}AXI4_LITE_INTERFACE{tuple_delimiter}The set_directive_interface directive bundles function arguments with compatible options into AXI4-Lite (s_axilite) interface ports by default during interface synthesis in Vitis HLS.{tuple_delimiter}9)
+{record_delimiter}
+("relationship"{tuple_delimiter}SET_DIRECTIVE_INTERFACE{tuple_delimiter}AXI4_INTERFACE{tuple_delimiter}The set_directive_interface directive bundles function arguments with compatible options into AXI4 (m_axi) interface ports by default during interface synthesis in Vitis HLS.{tuple_delimiter}9)
+{completion_delimiter}
+#############################
+
+
+Example 2:
+
+entity_types: [function, directive, pragma, data type, library, hardware module, interface protocol, memory model, algorithm, code construct, processing element, pipeline option, loop, synthesis tool, hardware resource, IP core]
+text:
+Rs at both the SLR output and SLR input.
+• You do not need to register a signal if it enters or exits an SLR via an I/O buffer.
+• Ensure that the logic created by Vitis HLS fits within a single SLR.
+Note: When you select an SSI technology device as the target technology, the utilization report includes
+details on both the SLR usage and the total device usage.
+
+If the logic is contained within a single SLR device, Vitis HLS provides a -register_all_io
+option to the config_rtl command. If the option is enabled, all inputs and outputs are
+registered. If disabled, none of the inputs or outputs are registered.
+
+Vitis HLS Memory Layout Model
+The Vitis application acceleration development flow provides a framework for developing and
+delivering FPGA accelerated applications using standard programming languages for both
+software and hardware components. The software component, or host program, is developed
+using C/C++ to run on x86 or embedded processors, with OpenCL/ Native XRT API calls to
+manage run time interactions with the accelerator. The hardware component, or kernel (that runs
+on the actual FPGA card/platform), can be developed using C/C++, OpenCL C, or RTL. The Vitis
+software platform promotes concurrent development and test of the hardware and software
+elements of a heterogeneous application. Due to this, the software program that runs on the host
+computer needs to communicate with the acceleration kernel that runs on the FPGA hardware
+model using well-defined interfaces and protocols. As a result, it becomes important to define the
+exact memory model that is used so that the data that is being read/written can be correctly
+processed. The memory model defines the way data is arranged and accessed in computer
+memory. It consists of two separate but related issues: data alignment and data structure
+padding. In addition, the Vitis HLS compiler supports the specification of special attributes (and
+pragmas) to change the default data alignment and data structure padding rules.
+
+Section II: HLS Programmers Guide
+Chapter 8: Interfaces of the HLS Design
+
+Data Alignment
+Software programmers are conditioned to think of memory as a simple array of bytes and the
+basic data types are composed of one or more blocks of memory. However, the computer's
+processor does not read from and write to memory in single byte-sized chunks. Instead, today's
+modern CPUs access memory in 2, 4, 8, 16, or even 32-byte chunks at a time - although 32 bit
+and 64 bit instruction set architecture (ISA) architectures are the most common. Due to how the
+memory is organized in your system, the addresses of these chunks should be multiples of their
+sizes. If an address satisfies this requirement, then it is said to be aligned. The difference between
+how high-level programmers think of memory and how modern processors actually work with
+memory is pretty important in terms of application correctness and performance. For example, if
+you don't understand the address alignment issues in your software, the following situations are
+all possible:
+• your software will run slower
+• your application will lock up/hang
+• your operating system can crash
+• your software will silently fail, yielding incorrect results
+The C++ language provides a set of fundamental types of various sizes. To make manipulating
+variables of these types fast, the generated object code will try to use CPU instructions that
+read/write the whole data type at once. This in turn means that the variables of these types
+should be placed in memory in a way that makes their addresses suitably aligned. As a result,
+besides size, each fundamental type has another property: its alignment requirement. It may
+seem that the fundamental type’s alignment is the same as its size. This is not generally the case
+since the most suitable CPU instruction for a particular type may only be able to access a part of
+its data at a time. For example, a 32-bit x86 GNU/Linux machine may only be able to read at
+most 4 bytes at a time so a 64-bit long long type will have a size of 8 and an alignment of 4.
+The following table shows the size and alignment (in bytes) for the basic native data types in C/C
+++ for both 32-bit and 64-bit x86-64 GNU/Linux machines.
+Table 8: Data Types
+32-bit x86 GNU/Linux
+
+64-bit x86 GNU/Linux
+
+Size
+
+Alignment
+
+Size
+
+Alignment
+
+bool
+
+1
+
+1
+
+1
+
+1
+
+char
+
+1
+
+1
+
+1
+
+1
+
+short int
+
+2
+
+2
+
+2
+
+2
+
+int
+
+4
+
+4
+
+4
+
+4
+
+long int
+
+4
+
+4
+
+8
+
+8
+
+long long int
+
+8
+
+4
+
+8
+
+8
+
+float
+
+4
+
+4
+
+4
+
+4
+
+double
+
+8
+
+4
+
+8
+
+8
+
+Type
+
+Section II: HLS Programmers Guide
+Chapter 8: Interfaces of the HLS Design
+
+Table 8: Data Types (cont'd)
+32-bit x86 GNU/Linux
+
+64-bit x86 GNU/Linux
+
+Size
+
+Alignment
+
+Size
+
+Alignment
+
+long double
+
+12
+
+4
+
+16
+
+16
+
+void*
+
+4
+
+4
+
+8
+
+8
+
+Type
+
+Given the above arrangement, why does a programmer need to change the alignment? There are
+several reasons but the main reason will be to trade-off between memory requirements and
+performance. When you are sending data back and forth from the host computer and the
+accelerator, every byte that is transmitted has a cost. Fortunately, the GCC C/C++ compiler
+provides the language extension __attribute__ ((aligned(X))) in order to change the
+default alignment for the variable, structures/classes, or a structure field, measured in bytes. For
+example,
+------------------------
+output:
+("entity"{tuple_delimiter}VITIS HLS{tuple_delimiter}synthesis tool{tuple_delimiter}Vitis HLS is a high-level synthesis tool that converts C/C++ or OpenCL code into hardware description for FPGA acceleration, supporting concurrent development of hardware and software components in heterogeneous applications)
+{record_delimiter}
+("entity"{tuple_delimiter}SLR{tuple_delimiter}hardware resource{tuple_delimiter}SLR (Super Logic Region) is a partitioned region of an FPGA device used to organize logic and routing resources, with considerations for signal registration at SLR input and output)
+{record_delimiter}
+("entity"{tuple_delimiter}REGISTER_ALL_IO{tuple_delimiter}pipeline option{tuple_delimiter}The -register_all_io option in Vitis HLS config_rtl command controls whether all inputs and outputs are registered when the logic fits within a single SLR; enabling it registers all I/Os, disabling it registers none)
+{record_delimiter}
+("entity"{tuple_delimiter}VITIS APPLICATION ACCELERATION DEVELOPMENT FLOW{tuple_delimiter}library{tuple_delimiter}The Vitis application acceleration development flow is a framework for developing FPGA accelerated applications using standard programming languages, enabling software and hardware components to be developed concurrently and communicate via well-defined interfaces and protocols)
+{record_delimiter}
+("entity"{tuple_delimiter}HOST PROGRAM{tuple_delimiter}code construct{tuple_delimiter}The host program is the software component developed in C/C++ running on x86 or embedded processors, managing runtime interactions with the FPGA accelerator via OpenCL or Native XRT API calls)
+{record_delimiter}
+("entity"{tuple_delimiter}KERNEL{tuple_delimiter}hardware module{tuple_delimiter}The kernel is the hardware component running on the FPGA card/platform, developed using C/C++, OpenCL C, or RTL, and communicates with the host program through defined interfaces and protocols)
+{record_delimiter}
+("entity"{tuple_delimiter}MEMORY MODEL{tuple_delimiter}memory model{tuple_delimiter}The memory model defines how data is arranged and accessed in computer memory, including data alignment and data structure padding, critical for correct data processing between host and accelerator)
+{record_delimiter}
+("entity"{tuple_delimiter}DATA ALIGNMENT{tuple_delimiter}directive{tuple_delimiter}Data alignment refers to arranging data in memory so that addresses are multiples of the data chunk sizes accessed by the processor, improving performance and correctness)
+{record_delimiter}
+("entity"{tuple_delimiter}DATA STRUCTURE PADDING{tuple_delimiter}directive{tuple_delimiter}Data structure padding involves adding extra bytes to data structures to satisfy alignment requirements, ensuring efficient memory access)
+{record_delimiter}
+("entity"{tuple_delimiter}ATTRIBUTE ALIGNED{tuple_delimiter}directive{tuple_delimiter}The GCC C/C++ language extension __attribute__ ((aligned(X))) allows programmers to specify custom alignment in bytes for variables, structures, or fields to optimize memory usage and performance)
+{record_delimiter}
+("entity"{tuple_delimiter}C++ FUNDAMENTAL TYPES{tuple_delimiter}data type{tuple_delimiter}C++ fundamental types are basic data types of various sizes with specific alignment requirements to enable efficient CPU instruction usage)
+{record_delimiter}
+("entity"{tuple_delimiter}OPENCL{tuple_delimiter}library{tuple_delimiter}OpenCL is a programming framework used in Vitis HLS for developing hardware kernels and managing runtime interactions between host and FPGA accelerator)
+{record_delimiter}
+("entity"{tuple_delimiter}NATIVE XRT API{tuple_delimiter}library{tuple_delimiter}Native XRT API is an interface used by the host program to manage runtime interactions with the FPGA accelerator in the Vitis development flow)
+{record_delimiter}
+("entity"{tuple_delimiter}CONFIG_RTL COMMAND{tuple_delimiter}function{tuple_delimiter}The config_rtl command in Vitis HLS is used to configure RTL generation options, including the -register_all_io pipeline option)
+{record_delimiter}
+("relationship"{tuple_delimiter}VITIS HLS{tuple_delimiter}REGISTER_ALL_IO{tuple_delimiter}Vitis HLS provides the -register_all_io pipeline option to control registration of inputs and outputs when logic fits within a single SLR{tuple_delimiter}9)
+{record_delimiter}
+("relationship"{tuple_delimiter}VITIS HLS{tuple_delimiter}CONFIG_RTL COMMAND{tuple_delimiter}Vitis HLS uses the config_rtl command to configure RTL generation including pipeline options like -register_all_io{tuple_delimiter}8)
+{record_delimiter}
+("relationship"{tuple_delimiter}VITIS APPLICATION ACCELERATION DEVELOPMENT FLOW{tuple_delimiter}HOST PROGRAM{tuple_delimiter}The Vitis application acceleration development flow includes the host program as the software component managing runtime interactions with the FPGA accelerator{tuple_delimiter}9)
+{record_delimiter}
+("relationship"{tuple_delimiter}VITIS APPLICATION ACCELERATION DEVELOPMENT FLOW{tuple_delimiter}KERNEL{tuple_delimiter}The Vitis application acceleration development flow includes the kernel as the hardware component running on the FPGA platform{tuple_delimiter}9)
+{record_delimiter}
+("relationship"{tuple_delimiter}HOST PROGRAM{tuple_delimiter}OPENCL{tuple_delimiter}The host program uses OpenCL API calls to manage runtime interactions with the FPGA accelerator{tuple_delimiter}8)
+{record_delimiter}
+("relationship"{tuple_delimiter}HOST PROGRAM{tuple_delimiter}NATIVE XRT API{tuple_delimiter}The host program uses Native XRT API calls to manage runtime interactions with the FPGA accelerator{tuple_delimiter}8)
+{record_delimiter}
+("relationship"{tuple_delimiter}KERNEL{tuple_delimiter}OPENCL{tuple_delimiter}The kernel can be developed using OpenCL C as part of the Vitis development flow{tuple_delimiter}8)
+{record_delimiter}
+("relationship"{tuple_delimiter}MEMORY MODEL{tuple_delimiter}DATA ALIGNMENT{tuple_delimiter}The memory model includes data alignment as a key aspect of how data is arranged and accessed in memory{tuple_delimiter}9)
+{record_delimiter}
+("relationship"{tuple_delimiter}MEMORY MODEL{tuple_delimiter}DATA STRUCTURE PADDING{tuple_delimiter}The memory model includes data structure padding to ensure proper alignment and access of data structures{tuple_delimiter}9)
+{record_delimiter}
+("relationship"{tuple_delimiter}DATA ALIGNMENT{tuple_delimiter}ATTRIBUTE ALIGNED{tuple_delimiter}The attribute aligned directive allows changing default data alignment to optimize memory usage and performance{tuple_delimiter}8)
+{record_delimiter}
+("relationship"{tuple_delimiter}C++ FUNDAMENTAL TYPES{tuple_delimiter}DATA ALIGNMENT{tuple_delimiter}C++ fundamental types have specific alignment requirements to enable efficient CPU instruction usage{tuple_delimiter}9)
+{completion_delimiter}
+#############################
+
+
+
+-Real Data-
+######################
+entity_types: [function, directive, pragma, data type, library, hardware module, interface protocol, memory model, algorithm, code construct, processing element, pipeline option, loop, synthesis tool, hardware resource, IP core]
+text: {input_text}
+######################
+output:

@@ -1,0 +1,11 @@
+/venv
+/llama_rag_output
+/synthesis_results/temp
+/output
+/retrieve_query
+/Vitis-HLS-Introductory-Examples-master
+.env
+.env.*
+/.vscode
+__pycache__/
+/graphrag/cache

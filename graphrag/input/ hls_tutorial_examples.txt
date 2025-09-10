@@ -1,0 +1,662 @@
+https://github.com/spcl/hls_tutorial_examples
+
+Example 1
+In this example, we look at a simple 1D stencil program, which needs to access three adjacent memory locations every cycle to compute a single output.
+
+Open xilinx/Example1.cpp and look over the code.
+We have attempt to pipeline the loop with II=1.
+In every iteration we access indices i-1, i and i+1 of memory_in.
+Run make synthesize_example1 to synthesize the design, and look at the output in the console.
+You will get a warning that the tool was unable to enforce the pipeline pragma due to a dependence constraint between the three memory reads within a single iteration of the pipeline.
+The resulting II will be 3, as only a single memory request from the interface can be resolved in a single cycle.
+Modify the code to only have 1 load from memory_in per cycle using on-chip buffers. This can be done by defining variables outside the loop, such that they are persisent across loop iterations (example solution in Example1_Pipelined.cpp).
+Run make again to observe that the initiation interval has now been reduced to 1, as only a single load is performed every iteration.
+
+Example1.cpp
+
+
+constexpr int N = 1024;
+
+void Simple1DStencil(float const *memory_in, float *memory_out) {
+
+  for (int i = 1; i < N - 1; ++i) {
+    #pragma HLS PIPELINE II=1
+
+    // We request 3 memory locations from DRAM here, which will be generated as
+    // 3 separate memory requests.
+    // In the best case scenario, this means that we can only perform the
+    // computation every 3 cycles, when all data is available.
+    //
+    // TODO: Add buffers persistent across iterations by placing them outside
+    // the loop, and use them to reduce the number of accesses from memory_in to
+    // 1 per cycle.
+
+    const auto left = memory_in[i - 1];
+    const auto center = memory_in[i];
+    const auto right = memory_in[i + 1];
+
+    constexpr float factor = 0.3333;
+    const auto average = factor * (left + center + right);
+
+    memory_out[i] = average;
+  }
+}
+
+Example1_Pipelined.cpp
+
+constexpr int N = 1024;
+
+void Simple1DStencil(float const *memory_in, float *memory_out) {
+
+  // Registers
+  float left = memory_in[0];
+  float center = memory_in[1];
+
+  for (int i = 1; i < N - 1; ++i) {
+    #pragma HLS PIPELINE II=1
+
+    const auto right = memory_in[i + 1];
+
+    constexpr float factor = 0.3333;
+    const auto average = factor * (left + center + right);
+
+    // Shift registers
+    left = center;
+    center = right;
+
+    memory_out[i] = average;
+  }
+}
+// Top-level entry function, not relevant for this example
+void Example1_Pipelined(float const *in, float *out) {
+  #pragma HLS INTERFACE m_axi port=in bundle=gmem0 offset=slave
+  #pragma HLS INTERFACE m_axi port=out bundle=gmem1 offset=slave
+  #pragma HLS INTERFACE s_axilite port=in
+  #pragma HLS INTERFACE s_axilite port=out
+  #pragma HLS INTERFACE s_axilite port=return
+  Simple1DStencil(in, out);
+}
+
+
+
+Example 2
+This example is similar to example 1, but has changed the iteration space to two dimensions, and the memory access pattern to vertically adjacent elements. This means that the three elements required to output a result are no longer adjacent in memory, and must thus be buffered for longer; namely M cycles, where M is the width of the domain.
+
+Open xilinx/Example2.cpp to see the required access pattern into memory_in.
+Run make synthesize_example2 to synthesize the code. You will see II=3 due to congestion on the memory port, similar to example 1.
+Implement buffers to reduce the number of loads to 1 per iteration, but this time using arrays of size M for the above and center elements.
+Initializing the arrays is now more than a single iteration: we will need two more loops to initialize the two buffers. Each of these should also be pipelined.
+Run synthesis again, and see that the II has been reduced to 1 (see example implementation in Example2_Buffered.cpp).
+
+Example2.cpp
+
+#include "Example2.h" // N and M are defined here
+
+void Stencil2D(float const memory_in[N * M], float memory_out[N * M]) {
+
+  for (int i = 1; i < N - 1; ++i) {
+    for (int j = 0; j < M; ++j) {
+      #pragma HLS PIPELINE II=1
+
+      const auto above = memory_in[(i - 1) * M + j];
+      const auto center = memory_in[i * M + j];
+      const auto below = memory_in[(i + 1) * M + j];
+
+      constexpr float factor = 0.3333;
+      const auto average = factor * (above + center + below);
+
+      memory_out[i * M + j] = average;
+    }
+  }
+}
+
+
+
+
+Example2_Buffered.cpp
+
+#include "Example2.h" // N and M are defined here
+
+void Stencil2D(float const memory_in[N * M], float memory_out[N * M]) {
+
+  float above[M];
+  float center[M];
+
+  // The first two rows are buffered in separate pipelines
+
+  for (int i = 0; i < M; ++i) {
+    #pragma HLS PIPELINE
+    above[i] = memory_in[i];
+  }
+
+  for (int i = 0; i < M; ++i) {
+    #pragma HLS PIPELINE
+    center[i] = memory_in[M + i];
+  }
+
+  // The remaining rows can be streamed
+
+  for (int i = 1; i < N - 1; ++i) {
+    for (int j = 0; j < M; ++j) {
+      #pragma HLS PIPELINE II=1
+
+      const auto below = memory_in[(i + 1) * M + j];
+
+      constexpr float factor = 0.3333;
+      const auto average = factor * (above[j] + center[j] + below);
+
+      above[j] = center[j];
+      center[j] = below;
+      #pragma HLS DEPENDENCE variable=above false
+      #pragma HLS DEPENDENCE variable=center false
+
+      memory_out[i * M + j] = average;
+    }
+  }
+}
+
+
+
+Example 3
+This example shows the influence of pipeline latencies on the total cycle count for nested loops.
+
+Add a loop over a third dimension around all three inner loops (for (int t = 0; t < T; ++t)).
+Open xilinx/Example3.h and observe what the values of N, M, and T are.
+Run make synthesize_example to synthesize, and look at the cycle count in report_example3.rpt.
+Try modifying N, M and T to be either:
+N and M small, T large
+N and M large, T small
+You should observe that for small values of N and M, the total cycle count will be considerably higher than the "ideal" situation of N*M*T, whereas for large N and M, it will be close to the ideal value.
+
+
+Example3.cpp
+
+#include "Example3.h" // Defines N, M, and T
+
+void Stencil2D(float const memory_in[N * M], float memory_out[N * M]) {
+
+  float above_buffer[M];
+  float center_buffer[M];
+
+  for (int i = 0; i < M; ++i) {
+    #pragma HLS PIPELINE II=1
+    above_buffer[i] = memory_in[i];
+  }
+
+  for (int i = 0; i < M; ++i) {
+    #pragma HLS PIPELINE II=1
+    center_buffer[i] = memory_in[M + i];
+  }
+
+  for (int i = 1; i < N - 1; ++i) {
+    for (int j = 0; j < M; ++j) {
+      #pragma HLS PIPELINE II=1
+
+      const auto above = above_buffer[j];
+      const auto center = center_buffer[j];
+      const auto below = memory_in[(i + 1) * M + j];
+
+      constexpr float factor = 0.3333;
+      const auto average = factor * (above + center + below);
+
+      memory_out[i * M + j] = average;
+    }
+  }
+}
+
+Example3_Time.cpp
+
+#include "Example3.h"  // Defines N, M and T
+
+void Stencil2D(float const memory_in[N * M], float memory_out[N * M]) {
+
+  float above_buffer[M];
+  float center_buffer[M];
+
+  // Try changing the relative size of the outer loop T and the inner loops
+  // N and M, and see how it affects the runtime.
+
+  for (int t = 0; t < T; ++t) {
+    for (int i = 0; i < M; ++i) {
+      #pragma HLS PIPELINE II=1
+      above_buffer[i] = memory_in[i];
+    }
+
+    for (int i = 0; i < M; ++i) {
+      #pragma HLS PIPELINE II=1
+      center_buffer[i] = memory_in[i];
+    }
+
+    for (int i = 1; i < N - 1; ++i) {
+      for (int j = 0; j < M; ++j) {
+        #pragma HLS PIPELINE II=1
+
+        const auto above = above_buffer[i];
+        const auto center = center_buffer[i];
+        const auto below = memory_in[(i + 1) * M + j];
+
+        constexpr float factor = 0.3333;
+        const auto average = factor * (above + center + below);
+
+        above_buffer[i] = center;
+        center_buffer[i] = below;
+
+        // To actually perform an iterative stencil, we would need to add double
+        // buffering.
+
+        memory_out[i * M + j] = average;
+      }
+    }
+  }
+}
+
+
+
+Example 4
+This example shows the factorization of different pipelines into separate processing elements, and how this can be exploited to scale up parallelism.
+
+xilinx/Example4.cpp contains a simple stencil code similar to example 2, but has been modified to read from and write to streams instead of memory. We also expose the Entry-function, which is the top-level entity of the kernel, and will host all concurrent processing elements. Each sub-function within Entry corresponds to a concurrently and independently scheduled processing element, communicating with other elements via streams (this is facilitated with the pragma HLS DATAFLOW). To interface with the outside world, the function ReadMemory reads from a DRAM interface into a stream, and WriteMemory writes into DRAM from a stream.
+
+Between the two memory functions, we have placed a parametric number of computational processing elements. To achieve this, we put the function call in a loop which is unrolled, causing each "iteration" to be instantiated as hardware. We use the parameter D to adjust this (must be known at compile-time!).
+
+Open xilinx/Example4.cpp, and get a grasp of the structure causing the generation of multiple, concurrent processing elements.
+Open xilinx/Example4.h to see the values of N, M and D.
+Run make synthesize_example4 to synthesize the code, and open report_example4.rpt.
+The report will now contain pipelining information on all D + 2 processing elements.
+Although D + 2 elements are connected in sequence, the total runtime will only be approximately the runtime of the slowest element (roughly N*M). Note: use the Interval metric, rather than the Latency metric, as the latter shows an inaccurate estimate as of Vivado HLS 2018.2.
+Try adjusting N, M and D. You will notice that increasing D has almost no influence on the total runtime (as this only increases the depth of the pipeline!), but increases performance, as each layer of means another stencil being applied in parallel in the pipeline.
+
+
+Example4.cpp
+
+#include "Example4.h"
+#include "hlslib/xilinx/Simulation.h"
+
+// Compute function/processing element
+void Simple1DStencil(Stream<float> &stream_in, Stream<float> &stream_out,
+                     int d) {
+
+  // Registers
+  float left = stream_in.Pop();
+  float center = stream_in.Pop();
+
+  for (int i = d + 2; i < N - d; ++i) {
+    #pragma HLS PIPELINE II=1
+
+    const auto in = stream_in.Pop();
+
+    // Read wavefront
+    const auto right = in;
+
+    // Compute
+    constexpr float factor = 0.3333;
+    const auto res = factor * (left + center + right);
+
+    // Update registers
+    left = center;
+    center = right;
+
+    // Write downstream
+    stream_out.Push(res);
+  }
+}
+
+// Reads into the head of the pipeline
+void ReadMemory(float const *in, Stream<float> &stream) {
+  for (int i = 0; i < N; ++i) {
+    #pragma HLS PIPELINE II=1
+    stream.Push(in[i]);
+  }
+}
+
+// Writes from the tail of the pipeline
+void WriteMemory(Stream<float> &stream, float *out) {
+  for (int i = D; i < N - D; ++i) { // Take shrinkage into account
+    #pragma HLS PIPELINE II=1
+    out[i] = stream.Pop();
+  }
+}
+
+void Example4(float const *in, float *out) {
+  #pragma HLS INTERFACE m_axi port=in bundle=gmem0 offset=slave
+  #pragma HLS INTERFACE m_axi port=out bundle=gmem1 offset=slave
+  #pragma HLS INTERFACE s_axilite port=in
+  #pragma HLS INTERFACE s_axilite port=out
+  #pragma HLS INTERFACE s_axilite port=return
+
+  #pragma HLS DATAFLOW
+
+  Stream<float> pipe[D + 1];
+
+  HLSLIB_DATAFLOW_INIT();
+
+  // HLSLIB_DATAFLOW_FUNCTION emulates concurrent execution in hardware by
+  // wrapping function calls in std::thread
+
+  HLSLIB_DATAFLOW_FUNCTION(ReadMemory, in, pipe[0]);
+
+  for (int d = 0; d < D; ++d) {
+    #pragma HLS UNROLL // D-fold replication
+    HLSLIB_DATAFLOW_FUNCTION(Simple1DStencil, pipe[d], pipe[d + 1], d);
+  }
+  HLSLIB_DATAFLOW_FUNCTION(WriteMemory, pipe[D], out);
+
+  HLSLIB_DATAFLOW_FINALIZE();
+}
+
+
+Example5.cpp
+
+Example 5
+xilinx/Example5.cpp contains a naive triple nested loop implementation of matrix multiplication. In this implementation, an inter-iteration ("loop-carried") dependency arises because of the accumulation into acc: Because every iteration of the inner loop depends on the result of the previous iteration, this accumulation cannot be pipelined to more than the number of cycles it takes to compute a single addition. We will see how we can eliminate the loop-carried dependency and improve the memory access pattern by doing loop reordering.
+
+Synthesize the example with make synthesize_example5. Pipelining to II=1 will not succeed because of the inter-iteration dependency on the accumulation variable.
+We will mend this by reordering the K and M loops:
+To do this change, the accumulation buffer will change from a single value outside the K-loop to an array outside both the K and M loops.
+In the inner loop, we update the accumulation buffer at position m. This means that the same position will only be updated every M cycles.
+Writing out the result to C now becomes a loop, as we have computed a full row before results are read.
+(An example implementation is given in Example5_Reordered.cpp)
+Run make again. The inner loop should now be pipelined.
+The accumulation buffer will now take up more storage (proportional to M).
+An extra pipeline is introduced, introducing an extra drain phase (writing back C), which would negatively affect performance for small values of N and M.
+Although we increased the accumulation buffer size to M, it is only necessary to restrict the number of cycles to be larger than the number of cycles taken to perform an addition in order to overcome the inter-iteration dependency. To reduce memory usage, we could tile the M-dimension.
+
+#include "Example5.h"
+
+void MatrixMultiplication(const double A[], const double B[], double C[]) {
+
+  for (int n = 0; n < N; ++n) {
+    for (int m = 0; m < M; ++m) {
+      double acc = 0;
+      for (int k = 0; k < K; ++k) {
+        #pragma HLS PIPELINE II=1
+        acc += A[n * K + k] * B[k * M + m];
+      }
+      C[n * M + m] = acc;
+    }
+  }
+}
+
+
+Example5_Reordered.cpp
+
+
+#include "Example5.h"
+
+void MatrixMultiplication(const double A[], const double B[], double C[]) {
+  for (int n = 0; n < N; ++n) {
+    double acc[M];  // Buffer an output row of C
+
+    for (int k = 0; k < K; ++k) {  // Collapsed dimension moved out
+
+      const auto a = A[n * K + k];  // We only need to read A once per row of B
+
+      for (int m = 0; m < M; ++m) {
+        #pragma HLS PIPELINE II=1
+        const double prev = (k == 0) ? 0 : acc[m];  // Automatic "reset" during
+        acc[m] = prev + a * B[k * M + m];           // first iteration of M-loop
+        #pragma HLS DEPENDENCE variable=acc false
+      }
+    }
+
+    // Write out resulting row of C
+    for (int m = 0; m < M; ++m) {
+      #pragma HLS PIPELINE II=1
+      C[n * M + m] = acc[m];
+    }
+  }
+}
+
+
+
+Example 6
+This example plays with scaling up parallelism in a matrix multiplication example. We add two degrees of parallelism: horizontal vector parallelism, which consumes bandwidth, and pipeline parallelism, which consumes buffer space. In xilinx/Example6.cpp, rather than loading a single value of a before the inner M-loop, we load a higher (parametric) number of elements, allowing us to apply each of them to every value of B loaded. In xilinx/Example6_Vectorized.cpp, we additionally add vectorization, by replacing the primitive data types with vector types, and adjusting the loop bounds accordingly. The two files can be synthesized with make synthesize_example6 and make synthesize_example6_vectorized, respectively.
+
+Observe the values of N, M, K, D (depth of A-buffer) and W (vector width) in xilinx/Example6.h.
+Predict what the total cycle count should be based on these values, then run synthesis to see if this matches expectations.
+Try increasing D and see how it affects the cycle count.
+Reset D, then try increasing W and see how it affects the cycle count.
+Try increasing both D and W, and see how it affects the cycle count.
+You will observe that both D and W come with significant diminishing returns. To offset this, try increasing N, M, and P. This will decrease the relative effect of the diminishing returns, as the latency of the three pipelines is relatively less than the number of iterations.
+
+
+Example6.cpp
+
+
+#include "Example6.h"
+
+void MatrixMultiplication(const float A[], const float B[], float C[]) {
+
+  for (int n = 0; n < N / D; ++n) {
+
+    float acc[D][M];
+    #pragma HLS ARRAY_PARTITION variable=acc dim=1 complete
+
+    for (int k = 0; k < K; ++k) {
+
+      float a_buffer[D];
+      for (int nd = 0; nd < D; ++nd) {
+        #pragma HLS PIPELINE II=1
+        a_buffer[nd] = A[n * D * K + nd * K + k];
+      }
+
+      for (int m = 0; m < M; ++m) {
+        #pragma HLS PIPELINE II=1
+        const auto b_val = B[k * M + m];
+        for (int nd = 0; nd < D; ++nd) {
+          #pragma HLS UNROLL
+          const auto prev = (k > 0) ? acc[nd][m] : static_cast<float>(0);
+          acc[nd][m] = prev + a_buffer[nd] * b_val;
+        }
+      }
+    }
+
+    for (int nd = 0; nd < D; ++nd) {
+      for (int m = 0; m < M; ++m) {
+        #pragma HLS LOOP_FLATTEN
+        #pragma HLS PIPELINE II=1
+        C[n * D * M + nd * M + m] = acc[nd][m];
+      }
+    }
+  }
+}
+
+
+Example6_Vectorized.cpp
+
+#include "Example6.h"
+
+void MatrixMultiplication(const float A[], const Vec_t B[], Vec_t C[]) {
+
+  for (int n = 0; n < N / D; ++n) {
+
+    Vec_t acc[D][M / W];
+    #pragma HLS ARRAY_PARTITION variable=acc dim=1 complete
+
+    for (int k = 0; k < K; ++k) {
+
+      float a_buffer[D];
+      for (int nd = 0; nd < D; ++nd) {
+        #pragma HLS PIPELINE II=1
+        a_buffer[nd] = A[n * D * K + nd * K + k];
+      }
+
+      for (int m = 0; m < M / W; ++m) {
+        #pragma HLS PIPELINE II=1
+        const auto b_val = B[k * (M / W) + m];
+        for (int nd = 0; nd < D; ++nd) {
+          #pragma HLS UNROLL
+          const auto prev = (k > 0) ? acc[nd][m] : Vec_t{static_cast<float>(0)};
+          acc[nd][m] = prev + a_buffer[nd] * b_val;
+        }
+      }
+    }
+
+    for (int nd = 0; nd < D; ++nd) {
+      for (int m = 0; m < M / W; ++m) {
+        #pragma HLS LOOP_FLATTEN
+        #pragma HLS PIPELINE II=1
+        C[n * D * (M / W) + nd * (M / W) + m] = acc[nd][m];
+      }
+    }
+  }
+}
+
+
+
+Example 7
+As a final step for scaling up performance, this example restructures the code from example 6 to a linear array of processing elements. This means that when scaling up D, we maintain a constant fan-out within each processing element, instead forwarding each loaded value to subsequent processing elements to gain more parallelism through reuse. This change adds one more layer of complexity: namely the forwarding of data between elements. Rather than storing D elements from A within an element, we forward all received elements but the last, which is kept as the local buffered element. Similarly, result values of C must be propagated through the element and written out at the beginning or end.Both of these functionalites requires loop bounds to depend on the position of the processing element in the chain (d).
+
+This example primarily exists as a reference of how to scale up computational kernels while maintaining a constant fan-out. To see the effect of scaling up the design, following steps similar to those proposed for example 6.
+
+
+#include "Example7.h"
+#include "hlslib/xilinx/Simulation.h"
+#include "hlslib/xilinx/Stream.h"
+
+using hlslib::Stream;
+
+void ProcessingElement(Stream<float> &a_in, Stream<float> &a_out,
+                       Stream<Vec_t> &b_in, Stream<Vec_t> &b_out,
+                       Stream<Vec_t> &c_in, Stream<Vec_t> &c_out, int d) {
+
+  // Loop over tiles of C
+  for (int bn = 0; bn < N / D; ++bn) {
+    for (int bm = 0; bm < M / (TM * W); ++bm) {
+      #pragma HLS LOOP_FLATTEN
+
+      Vec_t c_buffer[TM]; // Local result buffer
+
+      // Loop over collapsed dimension
+      for (int k = 0; k < K; ++k) {
+
+        float a_buffer; // Local buffer of A
+
+        // Buffer own value and forward columns to saturate all PEs
+        for (int nd = 0; nd < D - d; ++nd) {
+          #pragma HLS PIPELINE II=1
+          a_buffer = a_in.Pop();
+          if (nd < D - d - 1) {
+            a_out.Push(a_buffer);
+          }
+        }
+
+        // Stream row of B and apply it to the stored value of A
+        for (int tm = 0; tm < TM; ++tm) {
+          #pragma HLS PIPELINE II=1
+          const auto b_read = b_in.Pop();
+          const auto c_prev = (k > 0) ? c_buffer[tm] : Vec_t{static_cast<float>(0.)};
+          c_buffer[tm] = c_prev + a_buffer * b_read;
+          #pragma HLS DEPENDENCE variable=c_buffer false
+          // Forward to subsequent PE, if any
+          if (d < D - 1) {
+            b_out.Push(b_read);
+          }
+        }
+
+      } // End loop over K
+
+      // Write out result block
+      for (int tn = 0; tn < d + 1; ++tn) { // Different for each PE
+        for (int tm = 0; tm < TM; ++tm) {
+          #pragma HLS PIPELINE II=1
+          #pragma HLS LOOP_FLATTEN
+          Vec_t c_val{};
+          if (d > 0 && tn > 0) {
+            c_val = c_in.Pop();
+          } else {
+            c_val = c_buffer[tm];
+          }
+          c_out.Push(c_val);
+        }
+      }
+    }
+  }
+}
+
+inline int GetAIndex(int bn, int tn, int m) {
+  #pragma HLS INLINE
+  return bn * D * K + tn * K + m;
+}
+
+inline int GetBIndex(int bm, int k, int tm) {
+  #pragma HLS INLINE
+  return k * (M / W) + bm * TM + tm;
+}
+
+inline int GetCIndex(int bn, int bm, int tn, int tm) {
+  #pragma HLS INLINE
+  return bn * D * (M / W) + tn * (M / W) + bm * TM + tm;
+}
+
+void ReadA(float const a[], Stream<float> &a_pipe) {
+  for (int bn = 0; bn < N / D; ++bn) {
+    for (int bm = 0; bm < M / (TM * W); ++bm) {
+      for (int k = 0; k < K; ++k) {
+        for (int tn = 0; tn < D; ++tn) {
+          #pragma HLS LOOP_FLATTEN
+          #pragma HLS PIPELINE II=1
+          const auto read = a[GetAIndex(bn, tn, k)];
+          a_pipe.Push(read);
+        }
+      }
+    }
+  }
+}
+
+void ReadB(Vec_t const b[], Stream<Vec_t> &b_pipe) {
+  for (int bn = 0; bn < N / D; ++bn) {
+    for (int bm = 0; bm < M / (TM * W); ++bm) {
+      for (int k = 0; k < K; ++k) {
+        for (int tm = 0; tm < TM; ++tm) {
+          #pragma HLS LOOP_FLATTEN
+          #pragma HLS PIPELINE II=1
+          b_pipe.Push(b[GetBIndex(bm, k, tm)]);
+        }
+      }
+    }
+  }
+}
+
+void WriteC(Stream<Vec_t> &c_pipe, Vec_t c[]) {
+  for (int bn = 0; bn < N / D; ++bn) {
+    for (int bm = 0; bm < M / (TM * W); ++bm) {
+      for (int tn = 0; tn < D; ++tn) {
+        for (int tm = 0; tm < TM; ++tm) {
+          #pragma HLS LOOP_FLATTEN
+          #pragma HLS PIPELINE II=1
+          c[GetCIndex(bn, bm, tn, tm)] = c_pipe.Pop();
+        }
+      }
+    }
+  }
+}
+
+void Example7(float const a[], Vec_t const b[], Vec_t c[]) {
+
+  #pragma HLS INTERFACE m_axi port=a offset=slave bundle=gmem0
+  #pragma HLS INTERFACE m_axi port=b offset=slave bundle=gmem1
+  #pragma HLS INTERFACE m_axi port=c offset=slave bundle=gmem2
+  #pragma HLS INTERFACE s_axilite port=a bundle=control
+  #pragma HLS INTERFACE s_axilite port=b bundle=control
+  #pragma HLS INTERFACE s_axilite port=c bundle=control
+  #pragma HLS INTERFACE s_axilite port=return bundle=control
+  
+  #pragma HLS DATAFLOW
+
+  Stream<float> a_pipes[D + 1];
+  Stream<Vec_t> b_pipes[D + 1];
+  Stream<Vec_t> c_pipes[D + 1];
+
+  HLSLIB_DATAFLOW_INIT();
+  HLSLIB_DATAFLOW_FUNCTION(ReadA, a, a_pipes[0]);
+  HLSLIB_DATAFLOW_FUNCTION(ReadB, b, b_pipes[0]);
+  for (int d = 0; d < D; ++d) {
+    #pragma HLS UNROLL
+    HLSLIB_DATAFLOW_FUNCTION(ProcessingElement, a_pipes[d], a_pipes[d + 1],
+                             b_pipes[d], b_pipes[d + 1], c_pipes[d],
+                             c_pipes[d + 1], d);
+  }
+  HLSLIB_DATAFLOW_FUNCTION(WriteC, c_pipes[D], c);
+  HLSLIB_DATAFLOW_FINALIZE();
+}
