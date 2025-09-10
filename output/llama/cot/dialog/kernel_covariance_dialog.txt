@@ -1,0 +1,123 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+Optimize the following code by inserting pragma HLS lines. Before responding with any code, think step by step about the HLS optimizations that will improve performance and explain your reasoning. Finally, generate the C code with pragma HLS.
+
+
+void kernel_covariance(int m,int n,float float_n,float data[100][80],float cov[80][80],float mean[80])
+{
+  int i;
+  int j;
+  int k;
+{
+    
+    
+    
+    for (j = 0; j < 80; j++) {
+      mean[j] = 0.0;
+      
+      for (i = 0; i < 100; i++) {
+        mean[j] += data[i][j];
+      }
+      mean[j] /= float_n;
+    }
+    
+    
+    
+    for (i = 0; i < 100; i++) {
+      
+      for (j = 0; j < 80; j++) {
+        data[i][j] -= mean[j];
+      }
+    }
+    
+    
+    
+    for (i = 0; i < 80; i++) {
+      
+      for (j = i; j < 80; j++) {
+        cov[i][j] = 0.0;
+        
+        for (k = 0; k < 100; k++) {
+          cov[i][j] += data[k][i] * data[k][j];
+        }
+        cov[i][j] /= float_n - 1.0;
+        cov[j][i] = cov[i][j];
+      }
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+To optimize the code for HLS, we need to consider the following factors:
+
+1. Loop unrolling: HLS can optimize loops by unrolling them to reduce the number of loop iterations and improve memory access.
+2. Pipeline stages: HLS can break down loops into pipeline stages to improve throughput.
+3. Data reuse: HLS can optimize data access by reusing data in subsequent iterations.
+4. Memory access: HLS can optimize memory access by using buffers or other memory optimization techniques.
+
+Here's the optimized code with HLS pragmas:
+
+```c
+void kernel_covariance(int m,int n,float float_n,float data[100][80],float cov[80][80],float mean[80])
+{
+  #pragma HLS INTERFACE m_axi port=data[0]
+  #pragma HLS INTERFACE m_axi port=cov[0]
+  #pragma HLS INTERFACE m_axi port=mean[0]
+  
+  int i;
+  int j;
+  int k;
+  
+  #pragma HLS dataflow
+  
+  // Calculate mean
+  #pragma HLS pipeline II=1
+  for (j = 0; j < 80; j++) {
+    mean[j] = 0.0;
+    #pragma HLS loop_tripcount 100
+    #pragma HLS pipeline II=1
+    for (i = 0; i < 100; i++) {
+      mean[j] += data[i][j];
+    }
+    mean[j] /= float_n;
+  }
+  
+  // Subtract mean from data
+  #pragma HLS pipeline II=1
+  for (i = 0; i < 100; i++) {
+    #pragma HLS loop_tripcount 80
+    for (j = 0; j < 80; j++) {
+      data[i][j] -= mean[j];
+    }
+  }
+  
+  // Calculate covariance
+  #pragma HLS pipeline II=1
+  for (i = 0; i < 80; i++) {
+    #pragma HLS loop_tripcount 80
+    for (j = i; j < 80; j++) {
+      cov[i][j] = 0.0;
+      #pragma HLS pipeline II=1
+      #pragma HLS loop_tripcount 100
+      for (k = 0; k < 100; k++) {
+        cov[i][j] += data[k][i] * data[k][j];
+      }
+      cov[i][j] /= float_n - 1.0;
+      cov[j][i] = cov[i][j];
+    }
+  }
+}
+```
+
+In this optimized code:
+
+*   The `#pragma HLS INTERFACE m_axi` directives are used to specify the interfaces for the functions.
+*   The `#pragma HLS dataflow` directive is used to specify that the function is a dataflow-oriented function.
+*   The `#pragma HLS pipeline` directive is used to specify the pipeline stages for the loops.
+*   The `#pragma HLS loop_tripcount` directive is used to specify the number of iterations for the loops.
+*   The loops are unrolled using the `#pragma HLS pipeline` and `#pragma HLS loop_tripcount` directives.
+*   The data is reused by reusing the `mean` and `data` arrays in subsequent iterations.
+*   The memory access is optimized by using the `#pragma HLS pipeline` directive to break down the loops into pipeline stages.

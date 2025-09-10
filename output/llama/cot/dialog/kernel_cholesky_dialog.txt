@@ -1,0 +1,84 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+Optimize the following code by inserting pragma HLS lines. Before responding with any code, think step by step about the HLS optimizations that will improve performance and explain your reasoning. Finally, generate the C code with pragma HLS.
+
+#include <math.h>
+
+
+void kernel_cholesky(int n,float A[120][120])
+{
+  int i;
+  int j;
+  int k;
+{
+    
+    
+    
+    for (i = 0; i < 120; i++) {
+//j<i
+      
+      for (j = 0; j < i; j++) {
+        for (k = 0; k < j; k++) {
+          A[i][j] -= A[i][k] * A[j][k];
+        }
+        A[i][j] /= A[j][j];
+      }
+// i==j case
+      for (k = 0; k < i; k++) {
+        A[i][i] -= A[i][k] * A[i][k];
+      }
+      A[i][i] = sqrt(A[i][i]);
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+To optimize the given code, we need to consider the following HLS directives:
+
+1.  `#pragma HLS INTERFACE`: This directive is used to specify the interface of the kernel function. In this case, we can specify that the function takes an array of floats as an input and does not produce any output.
+
+2.  `#pragma HLS LOOP_FLATTEN`: This directive is used to flatten a loop. In this case, we can flatten the innermost loop to improve the performance.
+
+3.  `#pragma HLS ARRAY_RESHAPE`: This directive is used to reshape an array. In this case, we can reshape the array `A` to reduce the number of memory accesses.
+
+4.  `#pragma HLS DATAFLOW`: This directive is used to specify that the kernel function is a dataflow program. This can improve the performance by allowing the compiler to schedule the operations in parallel.
+
+Here's the optimized code with HLS directives:
+
+```c
+#include <math.h>
+
+void kernel_cholesky(int n, float A[120][120])
+{
+    #pragma HLS INTERFACE m_axi port=A[0] depth=120
+    #pragma HLS INTERFACE s_axilite port=n
+    #pragma HLS INTERFACE s_axilite port=return
+
+    int i;
+    int j;
+    int k;
+
+    #pragma HLS DATAFLOW
+
+    for (i = 0; i < 120; i++) {
+        #pragma HLS LOOP_FLATTEN
+        for (j = 0; j < i; j++) {
+            #pragma HLS LOOP_FLATTEN
+            for (k = 0; k < j; k++) {
+                A[i][j] -= A[i][k] * A[j][k];
+            }
+            A[i][j] /= A[j][j];
+        }
+        #pragma HLS LOOP_FLATTEN
+        for (k = 0; k < i; k++) {
+            A[i][i] -= A[i][k] * A[i][k];
+        }
+        A[i][i] = sqrt(A[i][i]);
+    }
+}
+```
+
+In this code, we have flattened the innermost loop using `#pragma HLS LOOP_FLATTEN` to improve the performance. We have also specified the interface of the kernel function using `#pragma HLS INTERFACE` to specify that the function takes an array of floats as an input and does not produce any output.

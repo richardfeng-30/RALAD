@@ -1,0 +1,85 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+Optimize the following code by inserting pragma HLS lines.
+void kernel_syrk(int n,int m,float alpha,float beta,float C[80][80],float A[80][60])
+{
+  int i;
+  int j;
+  int k;
+//BLAS PARAMS
+//TRANS = 'N'
+//UPLO  = 'L'
+// =>  Form  C := alpha*A*A**T + beta*C.
+//A is NxM
+//C is NxN
+{
+    
+    
+    
+    for (i = 0; i < 80; i++) {
+      for (j = 0; j <= i; j++) {
+        C[i][j] *= beta;
+      }
+      
+      
+      
+      for (k = 0; k < 60; k++) {
+        for (j = 0; j <= i; j++) {
+          C[i][j] += alpha * A[i][k] * A[j][k];
+        }
+      }
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+Here is the optimized code with HLS pragmas:
+
+```c
+void kernel_syrk(int n, int m, float alpha, float beta, float C[80][80], float A[80][60])
+{
+    #pragma HLS interface m_axi port=C[0] dim=2
+    #pragma HLS interface m_axi port=A[0] dim=2
+    
+    int i;
+    int j;
+    int k;
+    
+    //BLAS PARAMS
+    //TRANS = 'N'
+    //UPLO  = 'L'
+    // =>  Form  C := alpha*A*A**T + beta*C.
+    //A is NxM
+    //C is NxN
+    
+    #pragma HLS dataflow
+    
+    for (i = 0; i < 80; i++) {
+        #pragma HLS loop_tripcount min=1 max=80
+        for (j = 0; j <= i; j++) {
+            #pragma HLS loop_tripcount min=1 max=80
+            C[i][j] *= beta;
+        }
+        
+        for (k = 0; k < 60; k++) {
+            #pragma HLS loop_tripcount min=1 max=60
+            for (j = 0; j <= i; j++) {
+                #pragma HLS loop_tripcount min=1 max=80
+                C[i][j] += alpha * A[i][k] * A[j][k];
+            }
+        }
+    }
+}
+```
+
+The pragmas inserted are:
+
+- `#pragma HLS interface m_axi port=C[0] dim=2` and `#pragma HLS interface m_axi port=A[0] dim=2` to specify the memory interface for the arrays C and A.
+- `#pragma HLS dataflow` to specify the dataflow paradigm for the kernel.
+- `#pragma HLS loop_tripcount min=1 max=80` and `#pragma HLS loop_tripcount min=1 max=60` to specify the trip count for the loops.
+- `#pragma HLS loop_tripcount min=1 max=80` for the inner loops to specify the trip count for the loops.
+
+These pragmas can help the HLS compiler to optimize the code for better performance.

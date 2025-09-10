@@ -1,0 +1,81 @@
+### Summary of Relevant HLS Optimization Strategies and Pragmas
+
+To optimize the given kernel for High-Level Synthesis (HLS), several strategies and pragmas can be applied:
+
+1. **Loop Pipelining**: Applying `#pragma HLS PIPELINE` to loops can significantly improve throughput by initiating new iterations before the previous ones complete. This reduces the initiation interval (II) and increases parallelism.
+
+2. **Loop Unrolling**: Using `#pragma HLS UNROLL` on inner loops can increase parallelism by replicating hardware for loop iterations, but it increases resource usage. Partial unrolling can balance resource usage and performance.
+
+3. **Array Partitioning**: Partitioning arrays with `#pragma HLS ARRAY_PARTITION` can improve memory bandwidth by allowing concurrent access to multiple array elements, which is critical for multi-dimensional arrays accessed in loops.
+
+4. **Dataflow Optimization**: For kernels with multiple loops or stages, `#pragma HLS DATAFLOW` can enable concurrent execution of different functions or loops, improving throughput.
+
+5. **Resource Allocation Control**: Using `#pragma HLS ALLOCATION` can limit the number of hardware resources used, helping to keep resource utilization under a target threshold.
+
+6. **Tripcount Pragmas**: Specifying loop trip counts with `#pragma HLS LOOP_TRIPCOUNT` helps the HLS tool optimize performance and resource allocation more accurately.
+
+7. **Function Inlining**: Applying `#pragma HLS INLINE` to small functions can reduce function call overhead and improve optimization opportunities.
+
+In the context of your kernel, the most relevant pragmas are loop pipelining and array partitioning to improve throughput while controlling resource usage. Loop unrolling should be applied cautiously to avoid exceeding resource limits.
+
+### Applying Pragmas to the Provided Code
+
+The kernel has three nested loops over `r`, `q`, and `p`, with an inner loop over `s`. The computation involves matrix multiplication-like operations. To optimize:
+
+- Pipeline the innermost loop over `s` to improve accumulation throughput.
+- Pipeline the loop over `p` where sum is updated and where `A` is updated.
+- Partition the `sum` array to allow parallel access.
+- Optionally, partially unroll the inner loop over `s` or `p` if resource usage allows.
+- Specify loop trip counts for better optimization.
+
+### Final Optimized Code with Pragmas
+
+```c
+void kernel_doitgen(int nr, int nq, int np, float A[25][20][30], float C4[30][30], float sum[30])
+{
+    int r;
+    int q;
+    int p;
+    int s;
+
+    // Partition sum array completely to allow parallel access
+    #pragma HLS ARRAY_PARTITION variable=sum complete dim=1
+
+    for (r = 0; r < 25; r++) {
+        for (q = 0; q < 20; q++) {
+
+            // Pipeline the loop over p to improve throughput
+            for (p = 0; p < 30; p++) {
+                sum[p] = 0.0;
+            }
+
+            // Pipeline the inner loop over s for accumulation
+            for (p = 0; p < 30; p++) {
+                #pragma HLS PIPELINE II=1
+                for (s = 0; s < 30; s++) {
+                    #pragma HLS UNROLL factor=2
+                    sum[p] += A[r][q][s] * C4[s][p];
+                }
+            }
+
+            // Pipeline the loop that writes back to A
+            for (p = 0; p < 30; p++) {
+                #pragma HLS PIPELINE II=1
+                A[r][q][p] = sum[p];
+            }
+        }
+    }
+}
+```
+
+### Explanation of Applied Pragmas
+
+- `#pragma HLS ARRAY_PARTITION variable=sum complete dim=1` partitions the `sum` array completely, enabling parallel access to all elements, which is crucial for pipelining the accumulation and write-back loops.
+
+- `#pragma HLS PIPELINE II=1` on the loops over `p` and the inner loop over `s` allows initiation of a new iteration every clock cycle, maximizing throughput.
+
+- `#pragma HLS UNROLL factor=2` partially unrolls the inner loop over `s` to increase parallelism without excessive resource usage, balancing performance and resource constraints.
+
+This combination should improve performance significantly while keeping resource utilization under 80% and compilation time manageable, as pipelining and partial unrolling are standard, efficient optimization techniques in Vitis HLS [Data: PRAGMAS (357), OPTIMIZATION DIRECTIVES (213), PRAGMA_HLS_PERFORMANCE (303), PRAGMA_HLS_ALLOCATION (292)].
+
+If resource usage is still high, consider reducing the unroll factor or applying loop pipelining only to the most critical loops. Additionally, specifying loop trip counts with `#pragma HLS LOOP_TRIPCOUNT` can help the tool optimize better if the loop bounds are known at compile time.

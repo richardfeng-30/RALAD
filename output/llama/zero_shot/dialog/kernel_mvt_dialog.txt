@@ -1,0 +1,79 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+Optimize the following code by inserting pragma HLS lines.
+void kernel_mvt(int n,float x1[120],float x2[120],float y_1[120],float y_2[120],float A[120][120])
+{
+  int i;
+  int j;
+{
+    
+    
+    
+    for (i = 0; i < 120; i++) {
+      
+      for (j = 0; j < 120; j++) {
+        x1[i] = x1[i] + A[i][j] * y_1[j];
+      }
+    }
+    
+    
+    
+    for (i = 0; i < 120; i++) {
+      
+      for (j = 0; j < 120; j++) {
+        x2[i] = x2[i] + A[j][i] * y_2[j];
+      }
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+Here is the optimized code with HLS pragmas:
+
+```c
+void kernel_mvt(int n, float x1[120], float x2[120], float y_1[120], float y_2[120], float A[120][120])
+{
+  #pragma HLS INTERFACE m_axis port=x1 offset=slave bundle=gmem
+  #pragma HLS INTERFACE m_axis port=x2 offset=slave bundle=gmem
+  #pragma HLS INTERFACE m_axis port=y_1 offset=slave bundle=gmem
+  #pragma HLS INTERFACE m_axis port=y_2 offset=slave bundle=gmem
+  #pragma HLS INTERFACE m_axis port=A offset=slave bundle=gmem
+  
+  int i;
+  int j;
+  
+  #pragma HLS DATAFLOW
+  
+  #pragma HLS LOOP_TRIPCOUNT min=120 max=120
+  #pragma HLS UNROLL factor=1
+  for (i = 0; i < 120; i++) {
+    #pragma HLS LOOP_TRIPCOUNT min=120 max=120
+    #pragma HLS UNROLL factor=1
+    for (j = 0; j < 120; j++) {
+      x1[i] = x1[i] + A[i][j] * y_1[j];
+    }
+  }
+  
+  #pragma HLS LOOP_TRIPCOUNT min=120 max=120
+  #pragma HLS UNROLL factor=1
+  for (i = 0; i < 120; i++) {
+    #pragma HLS LOOP_TRIPCOUNT min=120 max=120
+    #pragma HLS UNROLL factor=1
+    for (j = 0; j < 120; j++) {
+      x2[i] = x2[i] + A[j][i] * y_2[j];
+    }
+  }
+}
+```
+
+The pragmas used are:
+
+- `#pragma HLS INTERFACE m_axis` to specify the memory interface for each array.
+- `#pragma HLS DATAFLOW` to specify that the kernel is a dataflow-oriented kernel.
+- `#pragma HLS LOOP_TRIPCOUNT` to specify the minimum and maximum trip count for each loop.
+- `#pragma HLS UNROLL` to specify the unroll factor for each loop.
+
+These pragmas can be adjusted based on the specific requirements of your design and the capabilities of your FPGA.

@@ -1,0 +1,133 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+You are given some HLS pragma insertion examples.
+
+Example 1: 
+// Write out resulting row of C
+    for (int m = 0; m < M; ++m) {
+      #pragma HLS PIPELINE II=1
+      C[n * M + m] = acc[m];
+    }
+  }
+}
+
+
+
+Example 6
+This example plays with scaling up parallelism in a matrix multiplication example. We add two degrees of parallelism: horizontal vector parallelism, which consumes bandwidth, and pipeline parallelism, which consumes buffer space. In xilinx/Example6.cpp, rather than loading a single value of a before the inner M-loop, we load a higher (parametric) number of elements, allowing us to apply each of them to every value of B loaded. In xilinx/Example6_Vectorized.cpp, we additionally add vectorization, by replacing the primitive data types with vector types, and adjusting the loop bounds accordingly. The two files can be synthesized with make synthesize_example6 and make synthesize_example6_vectorized, respectively.
+
+Example 2: 
+// Calculate matrix multiplication using local data buffer based on input size,
+// and write results into local buffer for out
+loop_count:
+    for (int i = 0; i < rep_count; i++) {
+    arraypart1:
+        for (int row = 0; row < size; row++) {
+#pragma HLS LOOP_TRIPCOUNT min = c_dim max = c_dim
+        arraypart2:
+            for (int col = 0; col < size; col++) {
+#pragma HLS LOOP_TRIPCOUNT min = c_dim max = c_dim
+            arraypart3:
+                for (int j = 0; j < MAX_SIZE; j++) {
+#pragma HLS LOOP_TRIPCOUNT min = c_dim max = c_dim
+                    int result = (col == 0) ? 0 : temp_sum[j];
+                    result += A[row][col] * B[col][j];
+                    temp_sum[j] = result;
+                    if (col == size - 1) C[row][j] = result;
+                }
+            }
+        }
+    }
+
+Example 3: 
+N
+−1
+X
+
+g[n] · e
+
+−j2πkn
+N
+
+Optimize the following code by inserting pragma HLS lines.
+//Multiresolution Analysis
+
+
+void kernel_doitgen(int nr,int nq,int np,float A[25][20][30],float C4[30][30],float sum[30])
+{
+  int r;
+  int q;
+  int p;
+  int s;
+{
+    
+    
+    for (r = 0; r < 25; r++) {
+      
+      
+      for (q = 0; q < 20; q++) {
+        
+        
+        for (p = 0; p < 30; p++) {
+          sum[p] = 0.0;
+          for (s = 0; s < 30; s++) {
+            sum[p] += A[r][q][s] * C4[s][p];
+          }
+        }
+        for (p = 0; p < 30; p++) {
+          A[r][q][p] = sum[p];
+        }
+      }
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+Here is the optimized C code with HLS pragmas:
+
+```c
+void kernel_doitgen(int nr, int nq, int np, float A[25][20][30], float C4[30][30], float sum[30]) {
+  #pragma HLS INTERFACE m_axi port=A offset=slave bundle=gmem
+  #pragma HLS INTERFACE m_axi port=C4 offset=slave bundle=gmem
+  #pragma HLS INTERFACE m_axi port=sum offset=slave bundle=gmem
+
+  int r;
+  int q;
+  int p;
+  int s;
+  {
+    #pragma HLS DATAFLOW
+    for (r = 0; r < 25; r++) {
+      #pragma HLS LOOP_TRIPCOUNT min = 25 max = 25
+      for (q = 0; q < 20; q++) {
+        #pragma HLS LOOP_TRIPCOUNT min = 20 max = 20
+        for (p = 0; p < 30; p++) {
+          #pragma HLS PIPELINE II=1
+          sum[p] = 0.0;
+          for (s = 0; s < 30; s++) {
+            #pragma HLS UNROLL
+            sum[p] += A[r][q][s] * C4[s][p];
+          }
+        }
+        for (p = 0; p < 30; p++) {
+          #pragma HLS PIPELINE II=1
+          A[r][q][p] = sum[p];
+        }
+      }
+    }
+  }
+}
+```
+
+In this code, I have added the following HLS pragmas:
+
+*   `#pragma HLS INTERFACE m_axi` to specify the memory interfaces for the arrays A, C4, and sum.
+*   `#pragma HLS DATAFLOW` to specify that the code is a dataflow program.
+*   `#pragma HLS LOOP_TRIPCOUNT` to specify the minimum and maximum trip counts for each loop.
+*   `#pragma HLS UNROLL` to specify that the inner loop should be unrolled.
+*   `#pragma HLS PIPELINE II=1` to specify that the outer loop should be pipelined with a pipeline depth of 1.
+
+These pragmas should help to optimize the code for synthesis and execution on an FPGA.

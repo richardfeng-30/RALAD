@@ -1,0 +1,95 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+Optimize the following code by inserting pragma HLS lines.
+
+void kernel_gemm(int ni,int nj,int nk,float alpha,float beta,float C[60][70],float A[60][80],float B[80][70])
+{
+  int i;
+  int j;
+  int k;
+//BLAS PARAMS
+//TRANSA = 'N'
+//TRANSB = 'N'
+// => Form C := alpha*A*B + beta*C,
+//A is NIxNK
+//B is NKxNJ
+//C is NIxNJ
+{
+    
+    
+    
+    for (i = 0; i < 60; i++) {
+      
+      for (j = 0; j < 70; j++) {
+        C[i][j] *= beta;
+      }
+      
+      
+      
+      for (k = 0; k < 80; k++) {
+        
+        for (j = 0; j < 70; j++) {
+          C[i][j] += alpha * A[i][k] * B[k][j];
+        }
+      }
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+Here is the optimized code with HLS pragmas:
+
+```c
+void kernel_gemm(int ni,int nj,int nk,float alpha,float beta,float C[60][70],float A[60][80],float B[80][70])
+{
+  #pragma HLS INTERFACE m_axi port=C offset=slave bundle=gmem
+  #pragma HLS INTERFACE m_axi port=A offset=slave bundle=gmem
+  #pragma HLS INTERFACE m_axi port=B offset=slave bundle=gmem
+  #pragma HLS INTERFACE s_axli offset=slave bundle=c_axi
+  #pragma HLS INTERFACE s_axli offset=return bundle=c_axi
+
+  int i;
+  int j;
+  int k;
+//BLAS PARAMS
+//TRANSA = 'N'
+//TRANSB = 'N'
+// => Form C := alpha*A*B + beta*C,
+//A is NIxNK
+//B is NKxNJ
+//C is NIxNJ
+{
+    
+    #pragma HLS LOOP_TRIPCOUNT min=1 max=60 avg=30
+    for (i = 0; i < 60; i++) {
+      
+      #pragma HLS LOOP_TRIPCOUNT min=1 max=70 avg=35
+      for (j = 0; j < 70; j++) {
+        C[i][j] *= beta;
+      }
+      
+      
+      
+      #pragma HLS LOOP_TRIPCOUNT min=1 max=80 avg=40
+      for (k = 0; k < 80; k++) {
+        
+        #pragma HLS LOOP_TRIPCOUNT min=1 max=70 avg=35
+        for (j = 0; j < 70; j++) {
+          C[i][j] += alpha * A[i][k] * B[k][j];
+        }
+      }
+    }
+  }
+}
+```
+
+In this optimized code, I've added the following pragmas:
+
+* `#pragma HLS INTERFACE` directives to specify the interfaces for the input and output arrays, as well as the control flow interfaces.
+* `#pragma HLS LOOP_TRIPCOUNT` directives to specify the trip count for each loop. This helps the HLS compiler to optimize the loop unrolling and pipelining.
+* `#pragma HLS INTERFACE s_axli` directives to specify the control flow interfaces for the function entry and return.
+
+These pragmas can help the HLS compiler to generate more efficient and optimized code for the kernel_gemm function.

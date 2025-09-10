@@ -1,0 +1,72 @@
+### Summary of Relevant HLS Optimization Strategies and Pragmas
+
+To optimize the given `kernel_trisolv` function for performance while keeping resource utilization under 80% and compilation time under 1800 seconds, several High-Level Synthesis (HLS) optimization strategies and pragmas can be applied:
+
+1. **Loop Pipelining**: Applying the `#pragma HLS pipeline` directive to loops can significantly improve throughput by overlapping the execution of loop iterations. This reduces the initiation interval (II), allowing new iterations to start before previous ones finish.
+
+2. **Loop Unrolling**: The `#pragma HLS unroll` directive replicates the loop body multiple times to increase parallelism. However, full unrolling of large loops can increase resource usage significantly, so partial unrolling or selective unrolling is preferred to balance resource utilization.
+
+3. **Array Partitioning**: Using `#pragma HLS array_partition` on arrays can enable parallel access to multiple elements, reducing memory bottlenecks. Partitioning the array `L` and vector `x` can improve data access parallelism.
+
+4. **Loop Tripcount**: Specifying loop trip counts with `#pragma HLS loop_tripcount` helps the HLS tool estimate performance and resource usage more accurately, aiding in optimization.
+
+5. **Dataflow and Task-Level Parallelism**: While not directly applicable to this simple kernel, restructuring code to enable task-level parallelism can improve throughput in more complex designs.
+
+6. **Resource Constraints and Directives**: To keep resource utilization under 80%, careful use of unrolling and partitioning is necessary. The HLS tool can be guided with pragmas to balance performance and resource usage.
+
+7. **Code Restructuring**: Restructuring nested loops and minimizing loop-carried dependencies can help improve pipelining efficiency.
+
+### Applying Pragmas to the `kernel_trisolv` Function
+
+The given function performs a forward substitution to solve a lower-triangular system. The inner loop has a data dependency on previous iterations of `x`, which limits full loop unrolling or pipelining of the outer loop. However, the inner loop can be optimized.
+
+Below is the optimized code with pragmas inserted:
+
+```c
+void kernel_trisolv(int n, float L[120][120], float x[120], float b[120]) {
+    int i, j;
+
+    // Partition the L matrix to enable parallel access to columns
+    #pragma HLS array_partition variable=L cyclic factor=8 dim=2
+    // Partition the x vector to enable parallel access
+    #pragma HLS array_partition variable=x cyclic factor=8
+
+    // Specify loop tripcounts for better optimization estimation
+    #pragma HLS loop_tripcount min=120 max=120
+
+    for (i = 0; i < 120; i++) {
+        #pragma HLS pipeline II=1
+        x[i] = b[i];
+
+        // Inner loop has data dependency, so unroll partially to balance resource usage
+        #pragma HLS unroll factor=4
+        for (j = 0; j < i; j++) {
+            x[i] -= L[i][j] * x[j];
+        }
+
+        x[i] = x[i] / L[i][i];
+    }
+}
+```
+
+### Explanation of Applied Pragmas
+
+- **Array Partitioning**: The matrix `L` is partitioned cyclically along the second dimension (columns) with a factor of 8, allowing multiple elements in a row to be accessed in parallel. Similarly, the vector `x` is partitioned cyclically to enable parallel reads/writes.
+
+- **Loop Tripcount**: The outer loop tripcount is specified as 120 to help the HLS tool optimize resource allocation and scheduling.
+
+- **Loop Pipelining**: The outer loop is pipelined with an initiation interval (II) of 1, aiming to start a new iteration every clock cycle. This is aggressive and may be relaxed by the tool if resource constraints are exceeded.
+
+- **Loop Unrolling**: The inner loop is partially unrolled by a factor of 4 to increase parallelism without excessive resource usage. Full unrolling is avoided due to data dependencies and resource constraints.
+
+### Additional Notes
+
+- The data dependency in the inner loop (each `x[i]` depends on previous `x[j]`) limits the extent of pipelining and unrolling possible on the outer loop.
+
+- The cyclic partition factor of 8 is a tradeoff between parallelism and resource usage; this can be tuned based on synthesis results.
+
+- If resource usage exceeds 80%, consider reducing the unroll factor or partition factor.
+
+- Compilation time under 1800 seconds should be achievable with these pragmas, but complex unrolling or partitioning may increase compile time.
+
+This approach balances performance improvement with resource and compile time constraints by applying targeted pragmas and code restructuring principles from HLS optimization techniques [Data: Entities (213, 4955, 119, 4139), Relationships (6255, 2323, 2329, 7295, 7296)].

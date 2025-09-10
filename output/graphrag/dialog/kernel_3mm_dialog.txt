@@ -1,0 +1,90 @@
+To optimize the given matrix multiplication kernel for High-Level Synthesis (HLS), we can apply several well-known optimization strategies using pragmas. These strategies aim to improve performance by increasing parallelism and throughput while controlling resource usage and compilation time.
+
+### Relevant Optimization Strategies and Pragmas
+
+1. **Loop Pipelining**: Overlapping the execution of loop iterations to improve throughput. Applying `#pragma HLS PIPELINE` to inner loops can reduce initiation interval (II) and increase performance.
+
+2. **Loop Unrolling**: Replicating loop bodies to increase parallelism. Partial unrolling of inner loops can improve parallelism but must be balanced to keep resource usage under control.
+
+3. **Array Partitioning**: Dividing arrays into smaller partitions to enable concurrent access and reduce memory bottlenecks. Using `#pragma HLS ARRAY_PARTITION` on arrays can improve data access parallelism.
+
+4. **Loop Flattening or Merging**: Combining nested loops to reduce overhead and improve pipeline efficiency.
+
+5. **Dataflow Optimization**: For multiple stages of computation, enabling concurrent execution of different functions or loops using `#pragma HLS DATAFLOW` can improve throughput.
+
+6. **Resource Constraints**: To keep resource utilization under 80%, pragmas should be applied conservatively, especially for unrolling and partitioning.
+
+7. **Compilation Time**: Avoid excessive unrolling or complex directives that significantly increase compile time beyond 1800 seconds.
+
+### Applying Pragmas to the Code
+
+Given the three matrix multiplications in the kernel, the main bottleneck is the triple nested loops. We can apply pipelining to the innermost loops and partial unrolling to the middle loops to balance performance and resource usage. Array partitioning can be applied to the arrays used in the innermost loops to enable parallel access.
+
+Below is the optimized code with pragmas inserted accordingly:
+
+```c
+void kernel_3mm(int ni,int nj,int nk,int nl,int nm,
+                float E[40][50], float A[40][60], float B[60][50],
+                float F[50][70], float C[50][80], float D[80][70],
+                float G[40][70])
+{
+  int i, j, k;
+
+  // Partition arrays to improve parallel access
+  #pragma HLS ARRAY_PARTITION variable=A complete dim=2
+  #pragma HLS ARRAY_PARTITION variable=B complete dim=1
+  #pragma HLS ARRAY_PARTITION variable=C complete dim=2
+  #pragma HLS ARRAY_PARTITION variable=D complete dim=1
+  #pragma HLS ARRAY_PARTITION variable=E complete dim=2
+  #pragma HLS ARRAY_PARTITION variable=F complete dim=2
+  #pragma HLS ARRAY_PARTITION variable=G complete dim=2
+
+  // First matrix multiplication: E = A * B
+  for (i = 0; i < 40; i++) {
+    for (j = 0; j < 50; j++) {
+      #pragma HLS PIPELINE II=1
+      E[i][j] = 0.0;
+      for (k = 0; k < 60; ++k) {
+        #pragma HLS UNROLL factor=4
+        E[i][j] += A[i][k] * B[k][j];
+      }
+    }
+  }
+
+  // Second matrix multiplication: F = C * D
+  for (i = 0; i < 50; i++) {
+    for (j = 0; j < 70; j++) {
+      #pragma HLS PIPELINE II=1
+      F[i][j] = 0.0;
+      for (k = 0; k < 80; ++k) {
+        #pragma HLS UNROLL factor=4
+        F[i][j] += C[i][k] * D[k][j];
+      }
+    }
+  }
+
+  // Third matrix multiplication: G = E * F
+  for (i = 0; i < 40; i++) {
+    for (j = 0; j < 70; j++) {
+      #pragma HLS PIPELINE II=1
+      G[i][j] = 0.0;
+      for (k = 0; k < 50; ++k) {
+        #pragma HLS UNROLL factor=4
+        G[i][j] += E[i][k] * F[k][j];
+      }
+    }
+  }
+}
+```
+
+### Explanation
+
+- **Array Partitioning**: The arrays are partitioned along the dimension accessed in the innermost loop to allow parallel access to multiple elements simultaneously, reducing memory bottlenecks.
+
+- **Loop Pipelining**: The outer two loops are kept intact, but the innermost loops are pipelined with an initiation interval (II) of 1 to maximize throughput.
+
+- **Loop Unrolling**: The innermost loops are partially unrolled by a factor of 4 to increase parallelism without excessive resource usage.
+
+This approach balances performance improvement with resource constraints and compilation time. Further tuning of unroll factors and partitioning granularity can be done based on synthesis reports to meet the exact resource and timing goals.
+
+This optimization strategy is supported by common HLS practices and examples of loop optimizations, pipelining, unrolling, and array partitioning in Vitis HLS [Data: Entities (213, 4139, 4337); Relationships (6255, 6260, 6287, 6256, 6270, 5966)].

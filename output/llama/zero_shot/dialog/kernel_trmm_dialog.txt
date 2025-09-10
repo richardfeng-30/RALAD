@@ -1,0 +1,83 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+Optimize the following code by inserting pragma HLS lines.
+void kernel_trmm(int m,int n,float alpha,float A[60][60],float B[60][80])
+{
+  int i;
+  int j;
+  int k;
+//BLAS parameters
+//SIDE   = 'L'
+//UPLO   = 'L'
+//TRANSA = 'T'
+//DIAG   = 'U'
+// => Form  B := alpha*A**T*B.
+// A is MxM
+// B is MxN
+{
+    
+    
+    
+    for (i = 0; i < 60; i++) {
+      
+      
+      
+      for (j = 0; j < 80; j++) {
+        for (k = i + 1; k < 60; k++) {
+          B[i][j] += A[k][i] * B[k][j];
+        }
+        B[i][j] = alpha * B[i][j];
+      }
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+Here is the optimized code with HLS pragmas:
+
+```c
+void kernel_trmm(int m,int n,float alpha,float A[60][60],float B[60][80])
+{
+    #pragma HLS INTERFACE m_axi port=A offset=slave bundle=gmem
+    #pragma HLS INTERFACE m_axi port=B offset=slave bundle=gmem
+    #pragma HLS INTERFACE axis port=A
+    #pragma HLS INTERFACE axis port=B
+    #pragma HLS INTERFACE s_axli port=m
+    #pragma HLS INTERFACE s_axli port=n
+    #pragma HLS INTERFACE s_axli port=alpha
+    #pragma HLS INTERFACE s_axlo port=m
+    #pragma HLS INTERFACE s_axlo port=n
+    #pragma HLS INTERFACE s_axlo port=alpha
+
+    #pragma HLS dataflow
+
+    int i;
+    int j;
+    int k;
+
+    for (i = 0; i < 60; i++) {
+        #pragma HLS loop_tripcount min=1 max=60
+        #pragma HLS pipeline II=1
+        for (j = 0; j < 80; j++) {
+            #pragma HLS loop_tripcount min=1 max=80
+            #pragma HLS pipeline II=1
+            for (k = i + 1; k < 60; k++) {
+                #pragma HLS unroll
+                B[i][j] += A[k][i] * B[k][j];
+            }
+            B[i][j] = alpha * B[i][j];
+        }
+    }
+}
+```
+
+The pragmas used are:
+
+- `#pragma HLS INTERFACE`: This directive is used to specify the interfaces of the kernel. It specifies the ports of the kernel and the direction of data transfer.
+- `#pragma HLS DATAFLOW`: This directive is used to specify the dataflow structure of the kernel. It indicates that the kernel is a dataflow program, which means that the execution of the kernel is controlled by the availability of data.
+- `#pragma HLS LOOP_TRIPCOUNT`: This directive is used to specify the number of iterations of a loop. It is used to guide the compiler in optimizing the loop.
+- `#pragma HLS PIPELINE`: This directive is used to specify the pipeline structure of the kernel. It indicates that the kernel is a pipeline program, which means that the execution of the kernel is controlled by the availability of data.
+- `#pragma HLS UNROLL`: This directive is used to specify the unrolling factor of a loop. It is used to guide the compiler in optimizing the loop.

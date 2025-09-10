@@ -1,0 +1,211 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+You are given some HLS pragma insertion examples.
+
+Example 1: 
+for k = 0, . . . , N − 1
+
+(5.13)
+
+n=0
+
+We can divide this equation into two parts, one that sums the even components and one that
+sums the odd components.
+N/2−1
+
+N/2−1
+
+G[k] =
+
+X
+
+g[2n] · e
+
+−j2πk(2n)
+N
+
++
+
+n=0
+
+X
+
+g[2n + 1] · e
+
+−j2πk(2n+1)
+N
+
+(5.14)
+
+n=0
+
+The first part of this equation deals with the even inputs, hence the 2n terms in both g[] and in
+the exponent of e. The second part corresponds to the odd inputs with 2n + 1 in both places. Also
+note that the sums now go to N/2 − 1 in both cases which should make sense since we have divided
+them into two halves.
+We transform Equation 5.14 to the following:
+N/2−1
+
+G[k] =
+
+X
+n=0
+
+g[2n] · e
+
+−j2πkn
+N/2
+
+N/2−1
+
++
+
+X
+n=0
+
+103
+
+g[2n + 1] · e
+
+−j2πk(2n)
+N
+
+·e
+
+−j2πk
+N
+
+(5.15)
+
+FAST FOURIER TRANSFORM
+
+Example 2: 
+n−1
+Y
+
+Ki =
+
+i=0
+
+n−1
+Y
+i=0
+
+√
+
+1
+1 + 2−2i
+
+(3.24)
+
+and
+K = lim K(n) ≈ 0.6072529350088812561694
+n→∞
+
+(3.25)
+
+The scaling factors for different iterations can be calculated in advance and stored in a table. If we
+always perform a fixed number of rotations, this is simply one constant. This correction could also
+be made in advance by scaling v0 appropriately before performing the rotations. Sometimes it is
+ok to ignore this scaling, which results in a processing gain
+n−1
+
+A=
+
+Yp
+1
+= lim
+1 + 2−2i ≈ 1.64676025812107
+n→∞
+K
+
+(3.26)
+
+i=0
+
+Example 3: 
+for (i = N − 1; i > 0; i−−) {
+shift reg[i] = shift reg[i − 1];
+}
+shift reg[0] = x;
+acc = 0;
+MAC:
+
+Optimize the following code by inserting pragma HLS lines.
+#include <math.h>
+
+
+void kernel_cholesky(int n,float A[120][120])
+{
+  int i;
+  int j;
+  int k;
+{
+    
+    
+    
+    for (i = 0; i < 120; i++) {
+//j<i
+      
+      for (j = 0; j < i; j++) {
+        for (k = 0; k < j; k++) {
+          A[i][j] -= A[i][k] * A[j][k];
+        }
+        A[i][j] /= A[j][j];
+      }
+// i==j case
+      for (k = 0; k < i; k++) {
+        A[i][i] -= A[i][k] * A[i][k];
+      }
+      A[i][i] = sqrt(A[i][i]);
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+Here is the optimized C code with HLS pragmas:
+```c
+#include <math.h>
+
+void kernel_cholesky(int n, float A[120][120]) {
+  #pragma HLS INTERFACE m_axi port=A[0] depth=120
+  #pragma HLS INTERFACE s_axilite port=n
+  #pragma HLS INTERFACE s_axilite port=A
+
+  int i;
+  int j;
+  int k;
+
+  #pragma HLS DATAFLOW
+
+  #pragma HLS LOOP_TRIPCOUNT min=1 max=120
+  for (i = 0; i < 120; i++) {
+    #pragma HLS LOOP_TRIPCOUNT min=1 max=i
+    for (j = 0; j < i; j++) {
+      #pragma HLS LOOP_TRIPCOUNT min=1 max=j
+      for (k = 0; k < j; k++) {
+        A[i][j] -= A[i][k] * A[j][k];
+      }
+      A[i][j] /= A[j][j];
+    }
+    // i==j case
+    for (k = 0; k < i; k++) {
+      A[i][i] -= A[i][k] * A[i][k];
+    }
+    A[i][i] = sqrt(A[i][i]);
+  }
+}
+```
+I added the following HLS pragmas:
+
+* `#pragma HLS INTERFACE m_axi port=A[0] depth=120` to specify the interface for the 2D array `A`.
+* `#pragma HLS INTERFACE s_axilite port=n` and `#pragma HLS INTERFACE s_axilite port=A` to specify the interfaces for the scalar variables `n` and `A`.
+* `#pragma HLS DATAFLOW` to indicate that the code is a dataflow program.
+* `#pragma HLS LOOP_TRIPCOUNT min=1 max=120` to specify the trip count for the outer loop.
+* `#pragma HLS LOOP_TRIPCOUNT min=1 max=i` to specify the trip count for the middle loop.
+* `#pragma HLS LOOP_TRIPCOUNT min=1 max=j` to specify the trip count for the inner loop.
+
+Note that the HLS pragmas are used to guide the HLS compiler to optimize the code for parallelism, pipelining, and memory access. The specific pragmas used may vary depending on the specific requirements of the code and the target hardware.

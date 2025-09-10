@@ -1,0 +1,178 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+You are given some HLS pragma insertion examples.
+
+Example 1: 
+N
+−1
+X
+
+g[n] · e
+
+−j2πkn
+N
+
+Example 2: 
+int ABij = 0;
+product: for(int k = 0; k < M; ++k) {
+ABij += A[i][k] ∗ B[k][j];
+}
+AB[i][j] = ABij;
+}
+}
+}
+Figure 7.1: A common three for loop structure for matrix multiplication. The outer for loops,
+labeled rows and cols, iterate across the rows and columns of the output matrix AB. The innermost
+loop, labeled product multiplies the appropriate elements of one row of A and one column of B and
+accumulates them until it has the result for the element in AB .
+Matrix multiplication is a fundamental operation in numerical algorithms. Computing the
+product between large matrices can take a significant amount of time. Therefore, it is critically
+important part of many of problems in numerical computing. Fundamentally, matrices represent linear transforms between vector spaces; matrix multiplication provides way to compose the
+linear transforms. Applications include linearly changing coordinates (e.g., translation, rotation
+
+Example 3: 
+G[k] =
+
+X
+n=0
+
+g[2n] · e
+
+−j2πkn
+N/2
+
+N/2−1
+
++
+
+X
+n=0
+
+103
+
+g[2n + 1] · e
+
+−j2πk(2n)
+N
+
+·e
+
+−j2πk
+N
+
+(5.15)
+
+FAST FOURIER TRANSFORM
+
+In the first summation (even inputs), we simply move the 2 into the denominator so that it is
+now N/2. The second summation (odd inputs) uses the power rule to separate the +1 leaving two
+complex exponentials. We can further modify this equation to
+N/2−1
+
+G[k] =
+
+X
+
+N/2−1
+
+−j2πkn
+
+g[2n] · e N/2 + e
+
+−j2πk
+N
+
+·
+
+n=0
+
+X
+
+−j2πkn
+
+g[2n + 1] · e N/2
+
+(5.16)
+
+n=0
+
+Here we only modify the second summation. First we pull one of the complex exponentials outside
+of the summation since it does not depend upon n. And we also move the 2 into the denominator
+as we did before in the first summation. Note that both summations now have the same complex
+−j2πkn
+
+exponential e N/2 . Finally, we simplify this to
+G[k] = Ak + WNk Bk
+
+(5.17)
+
+Optimize the following code by inserting pragma HLS lines. Before responding with any code, think step by step about the HLS optimizations that will improve performance and explain your reasoning. Finally, generate the C code with pragma HLS.
+
+void kernel_bicg(int m,int n,float A[124][116],float s[116],float q[124],float p[116],float r[124])
+{
+  int i;
+  int j;
+{
+    
+    for (i = 0; i < 116; i++) {
+      s[i] = ((float )0);
+    }
+    
+    
+    
+    for (i = 0; i < 124; i++) {
+      q[i] = 0.0;
+      
+      for (j = 0; j < 116; j++) {
+        s[j] = s[j] + r[i] * A[i][j];
+        q[i] = q[i] + A[i][j] * p[j];
+      }
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+The given code is a matrix multiplication algorithm with a common three for loop structure for matrix multiplication. The outer for loops, labeled rows and cols, iterate across the rows and columns of the output matrix AB. The innermost loop, labeled product, multiplies the appropriate elements of one row of A and one column of B and accumulates them until it has the result for the element in AB.
+
+To optimize this code using HLS pragmas, we can use the following steps:
+
+1.  Identify the loops that can be pipelined: In this case, the innermost loop labeled product is the most promising candidate for pipelining. This loop performs the actual multiplication and accumulation of the elements of A and B.
+2.  Use the #pragma HLS PIPELINE directive to specify the pipelining strategy: We can use the #pragma HLS PIPELINE directive to specify the number of pipeline stages for the product loop. This will allow the compiler to divide the loop into multiple stages, each of which can be executed concurrently.
+3.  Identify the loops that can be unrolled: The outer for loops, labeled rows and cols, iterate across the rows and columns of the output matrix AB. These loops can be unrolled to reduce the number of iterations and improve the performance.
+4.  Use the #pragma HLS UNROLL directive to specify the unrolling factor: We can use the #pragma HLS UNROLL directive to specify the unrolling factor for the rows and cols loops. This will allow the compiler to generate more efficient code by reducing the number of iterations.
+5.  Identify the arrays that can be stored in on-chip memory: The arrays A, B, and the output matrix AB are stored in off-chip memory. We can use the #pragma HLS ARRAY_PARTITION directive to specify that these arrays should be stored in on-chip memory to improve the performance.
+6.  Use the #pragma HLS DATAFLOW directive to specify the data flow: We can use the #pragma HLS DATAFLOW directive to specify the data flow between the loops. This will allow the compiler to generate more efficient code by optimizing the data transfer between the loops.
+
+Here is the optimized C code with HLS pragmas:
+
+```c
+void kernel_bicg(int m, int n, float A[124][116], float s[116], float q[124], float p[116], float r[124]) {
+  #pragma HLS DATAFLOW
+  #pragma HLS ARRAY_PARTITION variable=A cyclic factor=4
+  #pragma HLS ARRAY_PARTITION variable=B cyclic factor=4
+  #pragma HLS ARRAY_PARTITION variable=AB cyclic factor=4
+
+  int i;
+  int j;
+
+  #pragma HLS PIPELINE II=1
+  for (i = 0; i < 116; i++) {
+    s[i] = ((float)0);
+  }
+
+  #pragma HLS UNROLL factor=4
+  for (i = 0; i < 124; i++) {
+    q[i] = 0.0;
+    #pragma HLS PIPELINE II=1
+    for (j = 0; j < 116; j++) {
+      s[j] = s[j] + r[i] * A[i][j];
+      q[i] = q[i] + A[i][j] * p[j];
+    }
+  }
+}
+```
+
+In this optimized code, we have used the #pragma HLS PIPELINE directive to specify the pipelining strategy for the product loop. We have also used the #pragma HLS UNROLL directive to specify the unrolling factor for the rows and cols loops. Additionally, we have used the #pragma HLS ARRAY_PARTITION directive to specify that the arrays A, B, and the output matrix AB should be stored in on-chip memory. Finally, we have used the #pragma HLS DATAFLOW directive to specify the data flow between the loops.

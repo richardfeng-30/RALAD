@@ -1,0 +1,87 @@
+### Summary of Relevant Optimization Strategies and Pragmas for HLS
+
+In High-Level Synthesis (HLS), optimizing nested loops such as those in the Floyd-Warshall algorithm involves several key strategies:
+
+1. **Loop Pipelining**: This allows overlapping the execution of loop iterations to improve throughput. Applying `#pragma HLS pipeline` to the innermost loop or loops with high iteration counts can significantly reduce latency.
+
+2. **Loop Unrolling**: Unrolling loops replicates the loop body multiple times, increasing parallelism. Partial unrolling can balance resource usage and performance. The pragma `#pragma HLS unroll factor=<N>` is used for this purpose.
+
+3. **Loop Flattening**: Flattening nested loops into a single loop can reduce loop control overhead and improve pipeline efficiency. The pragma `#pragma HLS loop_flatten` can be applied to nested loops.
+
+4. **Array Partitioning**: Partitioning arrays into smaller blocks or individual elements enables concurrent access, reducing memory bottlenecks. This is done with `#pragma HLS array_partition variable=path complete` or cyclic/block partitioning.
+
+5. **Dataflow Optimization**: For loops that can be expressed as independent tasks, dataflow can be used to enable concurrent execution of different loop stages.
+
+6. **Tripcount Specification**: Specifying loop trip counts helps the HLS tool optimize pipeline initiation intervals and resource allocation.
+
+7. **Resource Constraints**: To keep resource utilization under 80%, pragmas should be balanced between aggressive unrolling/pipelining and resource usage.
+
+For the Floyd-Warshall kernel, the triple nested loops are a classic candidate for pipelining and partial unrolling, especially the innermost loop. However, full unrolling of all loops would likely exceed resource constraints. Array partitioning of the `path` matrix can improve memory access parallelism.
+
+### Example Pragmas from Knowledge Base
+
+- `#pragma HLS pipeline II=1` to pipeline loops with initiation interval 1.
+- `#pragma HLS unroll factor=4` to partially unroll loops.
+- `#pragma HLS array_partition variable=path cyclic factor=4 dim=2` to partition the second dimension of the 2D array cyclically.
+- `#pragma HLS loop_flatten` to flatten nested loops.
+- `#pragma HLS loop_tripcount min=180 max=180` to specify loop bounds for optimization.
+
+These pragmas are commonly used in Vitis HLS to optimize loops and arrays for performance while controlling resource usage [Data: Entities (869, 4139, 3228, 61, 357)].
+
+---
+
+### Optimized C Code with Pragmas Inserted
+
+```c
+void kernel_floyd_warshall(int n, int path[180][180])
+{
+    int i, j, k;
+
+    // Partition the second dimension of path array cyclically to enable parallel access
+    #pragma HLS array_partition variable=path cyclic factor=4 dim=2
+
+    // Flatten the outer two loops to reduce loop control overhead
+    #pragma HLS loop_flatten
+
+    for (k = 0; k < 180; k++) {
+        for (i = 0; i < 180; i++) {
+            // Pipeline the innermost loop to improve throughput
+            #pragma HLS pipeline II=1
+            for (j = 0; j < 180; j++) {
+                int via_k = path[i][k] + path[k][j];
+                if (path[i][j] > via_k) {
+                    path[i][j] = via_k;
+                }
+            }
+        }
+    }
+}
+```
+
+---
+
+### Explanation of Inserted Pragmas
+
+- **Array Partitioning**: The `path` array is partitioned cyclically along the second dimension with a factor of 4. This allows multiple elements in a row to be accessed in parallel, reducing memory access bottlenecks.
+
+- **Loop Flattening**: Flattening the outer two loops (`k` and `i`) reduces the overhead of nested loop control and can improve pipeline efficiency.
+
+- **Loop Pipelining**: The innermost loop (`j`) is pipelined with an initiation interval (II) of 1, allowing a new iteration to start every clock cycle, maximizing throughput.
+
+This combination balances performance improvement with resource usage, aiming to keep utilization under 80% and compilation time reasonable. Further tuning of unroll factors or partitioning can be done based on synthesis reports.
+
+---
+
+If more aggressive optimization is needed and resource usage allows, partial unrolling of the innermost loop can be considered, for example:
+
+```c
+#pragma HLS unroll factor=2
+```
+
+inside the innermost loop, but this should be verified against resource constraints.
+
+---
+
+### References
+
+This optimization approach is supported by common HLS optimization techniques including loop pipelining, unrolling, array partitioning, and loop flattening as described in the knowledge base [Data: Entities (869, 4139, 3228, 61, 357)].

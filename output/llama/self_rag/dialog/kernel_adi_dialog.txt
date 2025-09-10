@@ -1,0 +1,343 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+You are given some HLS pragma insertion examples.
+
+Example 1: 
+// a can be -0.5,
+
+ap_ufixed<1, 0> x = 0.5;
+// 1-bit representation. x can be 0 or 0.5
+ap_ufixed<1, -1> y = 0.25; // 1-bit representation. y can be 0 or 0.25
+const ap_fixed<1, -7> z = 1.0/256; // 1-bit representation for z = 2^-8
+
+Section VI: Vitis HLS Libraries Reference
+Chapter 27: Arbitrary Precision Data Types Library
+
+Table 41: Fixed-Point Identifier Summary (cont'd)
+Identifier
+
+Description
+
+Q
+
+Quantization mode: This dictates the behavior when greater precision is generated than can be defined
+by smallest fractional bit in the variable used to store the result.
+
+O
+
+N
+
+ap_fixed Types
+
+Description
+
+AP_RND
+
+Round to plus infinity
+
+AP_RND_ZERO
+
+Round to zero
+
+AP_RND_MIN_INF
+
+Round to minus infinity
+
+AP_RND_INF
+
+Round to infinity
+
+AP_RND_CONV
+
+Convergent rounding
+
+AP_TRN
+
+Truncation to minus infinity (default)
+
+AP_TRN_ZERO
+
+Truncation to zero
+
+Example 2: 
+// a can be -0.5,
+
+ap_ufixed<1, 0> x = 0.5;
+// 1-bit representation. x can be 0 or 0.5
+ap_ufixed<1, -1> y = 0.25; // 1-bit representation. y can be 0 or 0.25
+const ap_fixed<1, -7> z = 1.0/256; // 1-bit representation for z = 2^-8
+Q
+
+O
+
+N
+
+Quantization mode: This dictates the behavior when greater precision is generated than can be defined
+by smallest fractional bit in the variable used to store the result.
+ap_fixed Types
+
+Description
+
+AP_RND
+
+Round to plus infinity
+
+AP_RND_ZERO
+
+Round to zero
+
+AP_RND_MIN_INF
+
+Round to minus infinity
+
+AP_RND_INF
+
+Round to infinity
+
+AP_RND_CONV
+
+Convergent rounding
+
+AP_TRN
+
+Truncation to minus infinity (default)
+
+AP_TRN_ZERO
+
+Truncation to zero
+
+Overflow mode: This dictates the behavior when the result of an operation exceeds the maximum (or
+minimum in the case of negative numbers) possible value that can be stored in the variable used to
+store the result.
+ap_fixed Types
+
+Description
+
+AP_SAT1
+
+Saturation
+
+AP_SAT_ZERO1
+
+Saturation to zero
+
+AP_SAT_SYM1
+
+Example 3: 
+void apint_arith(dinA_t inA, dinB_t inB, dinC_t inC, dinD_t inD,
+dout1_t *out1, dout2_t *out2, dout3_t *out3, dout4_t *out4
+) {
+// Basic arithmetic operations
+*out1 = inA * inB;
+*out2 = inB + inA;
+*out3 = inC / inA;
+*out4 = inD % inA;
+}
+
+The data types dinA_t, dinB_t, etc. are defined in the header file types.h. It is highly
+recommended to use a project wide header file such as types.h as this allows for the easy
+migration from standard C/C++ types to arbitrary precision types and helps in refining the
+arbitrary precision types to the optimal size.
+If the data types in the above example are defined as:
+typedef char dinA_t;
+typedef short dinB_t;
+typedef int dinC_t;
+typedef long long dinD_t;
+typedef int dout1_t;
+typedef unsigned int dout2_t;
+typedef int32_t dout3_t;
+typedef int64_t dout4_t;
+
+Section II: HLS Programmers Guide
+Chapter 6: Data Types
+
+Optimize the following code by inserting pragma HLS lines.
+//Alternating Direction Implicit solver
+
+void kernel_adi(int tsteps,int n,float u[60][60],float v[60][60],float p[60][60],float q[60][60])
+{
+  float DX;
+  float DY;
+  float DT;
+  float B1;
+  float B2;
+  float mul1;
+  float mul2;
+  float a;
+  float b;
+  float c;
+  float d;
+  float e;
+  float f;
+  int t;
+  int i;
+  int j;
+  
+{
+    DX = 1.0 / ((float )60);
+    DY = 1.0 / ((float )60);
+    DT = 1.0 / ((float )40);
+    B1 = 2.0;
+    B2 = 1.0;
+    mul1 = B1 * DT / (DX * DX);
+    mul2 = B2 * DT / (DY * DY);
+    a = -mul1 / 2.0;
+    b = 1.0 + mul1;
+    c = a;
+    d = -mul2 / 2.0;
+    e = 1.0 + mul2;
+    f = d;
+    
+    
+    
+    for (t = 1; t <= 40; t++) {
+//Column Sweep
+      
+      
+      
+      for (i = 1; i < 60 - 1; i++) {
+        v[0][i] = 1.0;
+        p[i][0] = 0.0;
+        q[i][0] = v[0][i];
+        
+        for (j = 1; j < 60 - 1; j++) {
+          p[i][j] = -c / (a * p[i][j - 1] + b);
+          q[i][j] = (-d * u[j][i - 1] + (1.0 + 2.0 * d) * u[j][i] - f * u[j][i + 1] - a * q[i][j - 1]) / (a * p[i][j - 1] + b);
+        }
+        v[60 - 1][i] = 1.0;
+        
+        for (j = 0; j <= 57; j++) {
+          int _in_j_0 = 58 + -1 * j;
+          v[_in_j_0][i] = p[i][_in_j_0] * v[_in_j_0 + 1][i] + q[i][_in_j_0];
+        }
+        j = 1 + -1;
+      }
+//Row Sweep
+      
+      
+      
+      for (i = 1; i < 60 - 1; i++) {
+        u[i][0] = 1.0;
+        p[i][0] = 0.0;
+        q[i][0] = u[i][0];
+        
+        for (j = 1; j < 60 - 1; j++) {
+          p[i][j] = -f / (d * p[i][j - 1] + e);
+          q[i][j] = (-a * v[i - 1][j] + (1.0 + 2.0 * a) * v[i][j] - c * v[i + 1][j] - d * q[i][j - 1]) / (d * p[i][j - 1] + e);
+        }
+        u[i][60 - 1] = 1.0;
+        
+        for (j = 0; j <= 57; j++) {
+          int _in_j = 58 + -1 * j;
+          u[i][_in_j] = p[i][_in_j] * u[i][_in_j + 1] + q[i][_in_j];
+        }
+        j = 1 + -1;
+      }
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+Here are the optimized C code with HLS pragmas:
+
+```c
+void kernel_adi(int tsteps, int n, float u[60][60], float v[60][60], float p[60][60], float q[60][60]) {
+#pragma HLS INTERFACE m_axi port=u offset=slave bundle=gmem
+#pragma HLS INTERFACE m_axi port=v offset=slave bundle=gmem
+#pragma HLS INTERFACE m_axi port=p offset=slave bundle=gmem
+#pragma HLS INTERFACE m_axi port=q offset=slave bundle=gmem
+#pragma HLS INTERFACE s_axilite port=tsteps
+#pragma HLS INTERFACE s_axilite port=n
+#pragma HLS INTERFACE s_axilite port=return
+
+  float DX;
+  float DY;
+  float DT;
+  float B1;
+  float B2;
+  float mul1;
+  float mul2;
+  float a;
+  float b;
+  float c;
+  float d;
+  float e;
+  float f;
+  int t;
+  int i;
+  int j;
+  
+  {
+    DX = 1.0 / ((float)60);
+    DY = 1.0 / ((float)60);
+    DT = 1.0 / ((float)40);
+    B1 = 2.0;
+    B2 = 1.0;
+    mul1 = B1 * DT / (DX * DX);
+    mul2 = B2 * DT / (DY * DY);
+    a = -mul1 / 2.0;
+    b = 1.0 + mul1;
+    c = a;
+    d = -mul2 / 2.0;
+    e = 1.0 + mul2;
+    f = d;
+    
+    #pragma HLS dataflow
+    
+    for (t = 1; t <= 40; t++) {
+      //Column Sweep
+      #pragma HLS pipeline II=1
+      for (i = 1; i < 60 - 1; i++) {
+        v[0][i] = 1.0;
+        p[i][0] = 0.0;
+        q[i][0] = v[0][i];
+        
+        #pragma HLS pipeline II=1
+        for (j = 1; j < 60 - 1; j++) {
+          p[i][j] = -c / (a * p[i][j - 1] + b);
+          q[i][j] = (-d * u[j][i - 1] + (1.0 + 2.0 * d) * u[j][i] - f * u[j][i + 1] - a * q[i][j - 1]) / (a * p[i][j - 1] + b);
+        }
+        v[60 - 1][i] = 1.0;
+        
+        #pragma HLS pipeline II=1
+        for (j = 0; j <= 57; j++) {
+          int _in_j_0 = 58 + -1 * j;
+          v[_in_j_0][i] = p[i][_in_j_0] * v[_in_j_0 + 1][i] + q[i][_in_j_0];
+        }
+        j = 1 + -1;
+      }
+      //Row Sweep
+      #pragma HLS pipeline II=1
+      for (i = 1; i < 60 - 1; i++) {
+        u[i][0] = 1.0;
+        p[i][0] = 0.0;
+        q[i][0] = u[i][0];
+        
+        #pragma HLS pipeline II=1
+        for (j = 1; j < 60 - 1; j++) {
+          p[i][j] = -f / (d * p[i][j - 1] + e);
+          q[i][j] = (-a * v[i - 1][j] + (1.0 + 2.0 * a) * v[i][j] - c * v[i + 1][j] - d * q[i][j - 1]) / (d * p[i][j - 1] + e);
+        }
+        u[i][60 - 1] = 1.0;
+        
+        #pragma HLS pipeline II=1
+        for (j = 0; j <= 57; j++) {
+          int _in_j = 58 + -1 * j;
+          u[i][_in_j] = p[i][_in_j] * u[i][_in_j + 1] + q[i][_in_j];
+        }
+        j = 1 + -1;
+      }
+    }
+  }
+}
+```
+
+In this code, the following HLS pragmas are used:
+
+- `#pragma HLS INTERFACE m_axi` is used to specify the memory interface for the arrays u, v, p, and q.
+- `#pragma HLS INTERFACE s_axilite` is used to specify the interface for the integer variables tsteps and n.
+- `#pragma HLS DATAFLOW` is used to specify that the code is a dataflow program.
+- `#pragma HLS PIPELINE II=<value>` is used to specify the pipeline II (iteration interval) for the loops.

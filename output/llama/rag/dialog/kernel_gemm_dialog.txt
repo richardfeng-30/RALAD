@@ -1,0 +1,179 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+You are given some HLS pragma insertion examples.
+
+Example 1: 
+void matrixmul(int A[N][M], int B[M][P], int AB[N][P]) {
+#pragma HLS ARRAY RESHAPE variable=A complete dim=2
+#pragma HLS ARRAY RESHAPE variable=B complete dim=1
+/∗ for each row and column of AB ∗/
+row: for(int i = 0; i < N; ++i) {
+col: for(int j = 0; j < P; ++j) {
+#pragma HLS PIPELINE II=1
+/∗ compute (AB)i,j ∗/
+
+Example 2: 
+N
+−1
+X
+
+g[n] · e
+
+−j2πkn
+N
+
+Example 3: 
+G[k] =
+
+X
+n=0
+
+g[2n] · e
+
+−j2πkn
+N/2
+
+N/2−1
+
++
+
+X
+n=0
+
+103
+
+g[2n + 1] · e
+
+−j2πk(2n)
+N
+
+·e
+
+−j2πk
+N
+
+(5.15)
+
+FAST FOURIER TRANSFORM
+
+In the first summation (even inputs), we simply move the 2 into the denominator so that it is
+now N/2. The second summation (odd inputs) uses the power rule to separate the +1 leaving two
+complex exponentials. We can further modify this equation to
+N/2−1
+
+G[k] =
+
+X
+
+N/2−1
+
+−j2πkn
+
+g[2n] · e N/2 + e
+
+−j2πk
+N
+
+·
+
+n=0
+
+X
+
+−j2πkn
+
+g[2n + 1] · e N/2
+
+(5.16)
+
+n=0
+
+Here we only modify the second summation. First we pull one of the complex exponentials outside
+of the summation since it does not depend upon n. And we also move the 2 into the denominator
+as we did before in the first summation. Note that both summations now have the same complex
+−j2πkn
+
+exponential e N/2 . Finally, we simplify this to
+G[k] = Ak + WNk Bk
+
+(5.17)
+
+Optimize the following code by inserting pragma HLS lines.
+
+void kernel_gemm(int ni,int nj,int nk,float alpha,float beta,float C[60][70],float A[60][80],float B[80][70])
+{
+  int i;
+  int j;
+  int k;
+//BLAS PARAMS
+//TRANSA = 'N'
+//TRANSB = 'N'
+// => Form C := alpha*A*B + beta*C,
+//A is NIxNK
+//B is NKxNJ
+//C is NIxNJ
+{
+    
+    
+    
+    for (i = 0; i < 60; i++) {
+      
+      for (j = 0; j < 70; j++) {
+        C[i][j] *= beta;
+      }
+      
+      
+      
+      for (k = 0; k < 80; k++) {
+        
+        for (j = 0; j < 70; j++) {
+          C[i][j] += alpha * A[i][k] * B[k][j];
+        }
+      }
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+Here is the optimized code with HLS pragmas:
+
+```c
+void kernel_gemm(int ni, int nj, int nk, float alpha, float beta, float C[60][70], float A[60][80], float B[80][70]) {
+#pragma HLS INTERFACE m_axi port=C offset=slave bundle=gmem
+#pragma HLS INTERFACE m_axi port=A offset=slave bundle=gmem
+#pragma HLS INTERFACE m_axi port=B offset=slave bundle=gmem
+#pragma HLS INTERFACE s_axilite port=return bundle=control
+#pragma HLS INTERFACE s_axilite port=ni bundle=control
+#pragma HLS INTERFACE s_axilite port=nj bundle=control
+#pragma HLS INTERFACE s_axilite port=nk bundle=control
+#pragma HLS INTERFACE s_axilite port=alpha bundle=control
+#pragma HLS INTERFACE s_axilite port=beta bundle=control
+
+  int i;
+  int j;
+  int k;
+  
+  for (i = 0; i < 60; i++) {
+    for (j = 0; j < 70; j++) {
+      C[i][j] *= beta;
+    }
+    #pragma HLS pipeline II=1
+    for (k = 0; k < 80; k++) {
+      for (j = 0; j < 70; j++) {
+        C[i][j] += alpha * A[i][k] * B[k][j];
+      }
+    }
+  }
+}
+```
+
+In this code, I have added the following HLS pragmas:
+
+1. `#pragma HLS INTERFACE m_axi`: This pragma is used to specify the memory interface for the kernel.
+2. `#pragma HLS INTERFACE s_axilite`: This pragma is used to specify the scalar interface for the kernel.
+3. `#pragma HLS PIPELINE II=1`: This pragma is used to specify the pipeline depth for the kernel. In this case, the pipeline depth is set to 1, which means that each iteration of the inner loop will be executed in a separate pipeline stage.
+
+These pragmas can help to improve the performance of the kernel by allowing it to be executed in parallel and by reducing the number of memory accesses.

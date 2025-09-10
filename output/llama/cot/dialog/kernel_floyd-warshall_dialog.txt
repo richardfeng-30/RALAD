@@ -1,0 +1,105 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+Optimize the following code by inserting pragma HLS lines. Before responding with any code, think step by step about the HLS optimizations that will improve performance and explain your reasoning. Finally, generate the C code with pragma HLS.
+
+
+void kernel_floyd_warshall(int n,int path[180][180])
+{
+  int i;
+  int j;
+  int k;
+{
+    
+    
+    
+    for (k = 0; k < 180; k++) {
+      
+      
+      
+      for (i = 0; i < 180; i++) {
+        
+        for (j = 0; j < 180; j++) {
+          path[i][j] = (path[i][j] < path[i][k] + path[k][j]?path[i][j] : path[i][k] + path[k][j]);
+        }
+      }
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+To optimize the given code for the HLS compiler, we need to consider the following factors:
+
+1. Loop unrolling: By unrolling the loops, we can reduce the number of iterations and improve the performance.
+
+2. Loop pipelining: By pipelining the loops, we can overlap the execution of the loops and improve the performance.
+
+3. Memory access: By optimizing the memory access, we can reduce the memory access latency and improve the performance.
+
+Here's the optimized code with the HLS pragmas:
+
+```c
+void kernel_floyd_warshall(int n, int path[180][180])
+{
+    #pragma HLS INTERFACE m_axi port=path[0] depth=180
+    #pragma HLS INTERFACE axis port=path[0]
+    #pragma HLS INTERFACE s_axilite port=n
+    #pragma HLS INTERFACE s_axilite port=return
+
+    int i;
+    int j;
+    int k;
+    #pragma HLS loop_tripcount min=1 max=180
+    #pragma HLS loop_tripcount avg=90
+    #pragma HLS loop_pipelined off
+
+    for (k = 0; k < 180; k += 4) {
+        #pragma HLS loop_tripcount min=1 max=45
+        #pragma HLS loop_tripcount avg=22.5
+        #pragma HLS loop_pipelined off
+        for (i = 0; i < 180; i += 4) {
+            #pragma HLS loop_tripcount min=1 max=45
+            #pragma HLS loop_tripcount avg=22.5
+            #pragma HLS loop_pipelined off
+            for (j = 0; j < 180; j += 4) {
+                #pragma HLS loop_tripcount min=1 max=45
+                #pragma HLS loop_tripcount avg=22.5
+                #pragma HLS loop_pipelined off
+                path[i][j] = (path[i][j] < path[i][k] + path[k][j]?path[i][j] : path[i][k] + path[k][j]);
+            }
+        }
+    }
+}
+```
+
+In the above code, I have added the following HLS pragmas:
+
+1. `#pragma HLS INTERFACE m_axi port=path[0] depth=180`: This pragma specifies the memory interface for the path array.
+
+2. `#pragma HLS INTERFACE axis port=path[0]`: This pragma specifies the axis interface for the path array.
+
+3. `#pragma HLS INTERFACE s_axilite port=n`: This pragma specifies the s_axilite interface for the n variable.
+
+4. `#pragma HLS INTERFACE s_axilite port=return`: This pragma specifies the s_axilite interface for the return value.
+
+5. `#pragma HLS loop_tripcount min=1 max=180`: This pragma specifies the minimum and maximum number of iterations for the outer loop.
+
+6. `#pragma HLS loop_tripcount avg=90`: This pragma specifies the average number of iterations for the outer loop.
+
+7. `#pragma HLS loop_pipelined off`: This pragma disables pipelining for the loops.
+
+8. `#pragma HLS loop_tripcount min=1 max=45`: This pragma specifies the minimum and maximum number of iterations for the middle loop.
+
+9. `#pragma HLS loop_tripcount avg=22.5`: This pragma specifies the average number of iterations for the middle loop.
+
+10. `#pragma HLS loop_pipelined off`: This pragma disables pipelining for the middle loop.
+
+11. `#pragma HLS loop_tripcount min=1 max=45`: This pragma specifies the minimum and maximum number of iterations for the inner loop.
+
+12. `#pragma HLS loop_tripcount avg=22.5`: This pragma specifies the average number of iterations for the inner loop.
+
+13. `#pragma HLS loop_pipelined off`: This pragma disables pipelining for the inner loop.
+
+By using these pragmas, we can optimize the code for the HLS compiler and improve the performance.

@@ -1,0 +1,24 @@
+void kernel_gesummv(int n, float alpha, float beta, float A[90][90], float B[90][90], float tmp[90], float x[90], float y[90]) {
+  #pragma HLS interface m_axi port=A[0] depth=8100
+  #pragma HLS interface m_axi port=B[0] depth=8100
+  #pragma HLS interface m_axi port=tmp[0] depth=90
+  #pragma HLS interface m_axi port=x[0] depth=90
+  #pragma HLS interface m_axi port=y[0] depth=90
+
+  int i;
+  int j;
+  #pragma HLS dataflow
+
+  for (i = 0; i < 90; i++) {
+    #pragma HLS loop_tripcount min=1 max=90 avg=45
+    tmp[i] = 0.0;
+    y[i] = 0.0;
+
+    for (j = 0; j < 90; j++) {
+      #pragma HLS loop_tripcount min=1 max=90 avg=45
+      tmp[i] = A[i][j] * x[j] + tmp[i];
+      y[i] = B[i][j] * x[j] + y[i];
+    }
+    y[i] = alpha * tmp[i] + beta * y[i];
+  }
+}

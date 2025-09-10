@@ -1,0 +1,94 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+You are given some HLS pragma insertion examples.
+
+Example 1: 
+N
+−1
+X
+
+g[n] · e
+
+−j2πkn
+N
+
+Optimize the following code by inserting pragma HLS lines.
+//Symmetric Rank-2k Operations
+
+void kernel_syr2k(int n,int m,float alpha,float beta,float C[80][80],float A[80][60],float B[80][60])
+{
+  int i;
+  int j;
+  int k;
+//BLAS PARAMS
+//UPLO  = 'L'
+//TRANS = 'N'
+//A is NxM
+//B is NxM
+//C is NxN
+{
+    
+    
+    
+    for (i = 0; i < 80; i++) {
+      for (j = 0; j <= i; j++) {
+        C[i][j] *= beta;
+      }
+      
+      
+      
+      for (k = 0; k < 60; k++) {
+        for (j = 0; j <= i; j++) {
+          C[i][j] += A[j][k] * alpha * B[i][k] + B[j][k] * alpha * A[i][k];
+        }
+      }
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+Here is the optimized code with HLS pragmas:
+
+```c
+void kernel_syr2k(int n, int m, float alpha, float beta, float C[80][80], float A[80][60], float B[80][60]) {
+  #pragma HLS INTERFACE m_axi port=C offset=slave bundle=gmem
+  #pragma HLS INTERFACE m_axi port=A offset=slave bundle=gmem
+  #pragma HLS INTERFACE m_axi port=B offset=slave bundle=gmem
+  #pragma HLS INTERFACE s_axli offset=slave bundle=acc
+  #pragma HLS INTERFACE s_axlo offset=slave bundle=acc
+  
+  int i;
+  int j;
+  int k;
+  
+  for (i = 0; i < 80; i++) {
+    #pragma HLS loop_tripcount min=1 max=80 avg=20
+    #pragma HLS pipeline II=1
+    for (j = 0; j <= i; j++) {
+      #pragma HLS unroll factor=8
+      C[i][j] *= beta;
+    }
+    
+    for (k = 0; k < 60; k++) {
+      #pragma HLS loop_tripcount min=1 max=60 avg=30
+      #pragma HLS pipeline II=1
+      for (j = 0; j <= i; j++) {
+        #pragma HLS unroll factor=8
+        C[i][j] += A[j][k] * alpha * B[i][k] + B[j][k] * alpha * A[i][k];
+      }
+    }
+  }
+}
+```
+
+In this code, I've added the following HLS pragmas:
+
+1. `#pragma HLS INTERFACE`: These pragmas specify the interfaces for the function, including the memory-mapped arrays and the AXI interfaces.
+2. `#pragma HLS LOOP_TRIPCOUNT`: These pragmas specify the trip count for each loop, which helps the HLS compiler optimize the loop.
+3. `#pragma HLS PIPELINE`: These pragmas specify the pipeline depth for each loop, which helps the HLS compiler optimize the pipeline.
+4. `#pragma HLS UNROLL`: These pragmas specify the unroll factor for each loop, which helps the HLS compiler optimize the loop.
+
+Note that the optimal values for these pragmas may vary depending on the specific hardware and the requirements of the application.

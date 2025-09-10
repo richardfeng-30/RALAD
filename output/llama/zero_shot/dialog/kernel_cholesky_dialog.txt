@@ -1,0 +1,77 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+Optimize the following code by inserting pragma HLS lines.
+#include <math.h>
+
+
+void kernel_cholesky(int n,float A[120][120])
+{
+  int i;
+  int j;
+  int k;
+{
+    
+    
+    
+    for (i = 0; i < 120; i++) {
+//j<i
+      
+      for (j = 0; j < i; j++) {
+        for (k = 0; k < j; k++) {
+          A[i][j] -= A[i][k] * A[j][k];
+        }
+        A[i][j] /= A[j][j];
+      }
+// i==j case
+      for (k = 0; k < i; k++) {
+        A[i][i] -= A[i][k] * A[i][k];
+      }
+      A[i][i] = sqrt(A[i][i]);
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+Here is the optimized code with HLS pragmas:
+
+```c
+#include <math.h>
+
+#pragma HLS INTERFACE m_axi port=A[0] dimension=2
+#pragma HLS INTERFACE s_axilite port=n
+#pragma HLS INTERFACE s_axilite port=return
+
+void kernel_cholesky(int n,float A[120][120])
+{
+  int i;
+  int j;
+  int k;
+  #pragma HLS DATAFLOW
+  #pragma HLS ARRAY_PARTITION variable=A cyclic factor=10
+
+  for (i = 0; i < 120; i++) {
+    #pragma HLS LOOP_FLATTEN
+    for (j = 0; j < i; j++) {
+      #pragma HLS LOOP_FLATTEN
+      for (k = 0; k < j; k++) {
+        #pragma HLS PIPELINE II=1
+        A[i][j] -= A[i][k] * A[j][k];
+      }
+      #pragma HLS PIPELINE II=1
+      A[i][j] /= A[j][j];
+    }
+    // i==j case
+    for (k = 0; k < i; k++) {
+      #pragma HLS PIPELINE II=1
+      A[i][i] -= A[i][k] * A[i][k];
+    }
+    #pragma HLS PIPELINE II=1
+    A[i][i] = sqrt(A[i][i]);
+  }
+}
+```
+
+In this code, I added HLS pragmas to specify the interfaces, array partitioning, and loop optimization. The `#pragma HLS DATAFLOW` directive specifies that the function is a dataflow-oriented function, which allows the HLS compiler to optimize the data dependencies between the loops. The `#pragma HLS ARRAY_PARTITION` directive partitions the 2D array `A` into 10 smaller arrays, which can improve memory access and reduce memory usage. The `#pragma HLS LOOP_FLATTEN` directive flattens the nested loops, which can improve loop pipelining and reduce pipeline stalls. The `#pragma HLS PIPELINE` directive specifies the pipeline initiation interval (II) for each loop, which controls the amount of pipeline stages and the pipeline depth.

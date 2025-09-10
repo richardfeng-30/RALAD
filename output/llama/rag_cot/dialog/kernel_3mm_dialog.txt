@@ -1,0 +1,168 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+You are given some HLS pragma insertion examples.
+
+Example 1: 
+for computation. Larger FPGAs can have millions of these programmable logic elements.
+How would you program the 2-LUT from Figure 1.1 to implement an XOR gate? An OR
+gate? How many programming bits does an n input (n-LUT) require?
+
+Example 2: 
+N
+−1
+X
+
+g[n] · e
+
+−j2πkn
+N
+
+Example 3: 
+void firI1(data t ∗y, data t x);
+void firQ1(data t ∗y, data t x);
+void firI2(data t ∗y, data t x);
+void firQ2(data t ∗y, data t x);
+
+Optimize the following code by inserting pragma HLS lines. Before responding with any code, think step by step about the HLS optimizations that will improve performance and explain your reasoning. Finally, generate the C code with pragma HLS.
+void kernel_3mm(int ni,int nj,int nk,int nl,int nm,float E[40][50],float A[40][60],float B[60][50],float F[50][70],float C[50][80],float D[80][70],float G[40][70])
+{
+  int i;
+  int j;
+  int k;
+{
+    
+    
+    
+    for (i = 0; i < 40; i++) {
+      
+      
+      
+      for (j = 0; j < 50; j++) {
+        E[i][j] = 0.0;
+        
+        for (k = 0; k < 60; ++k) {
+          E[i][j] += A[i][k] * B[k][j];
+        }
+      }
+    }
+    
+    
+    
+    for (i = 0; i < 50; i++) {
+      
+      
+      
+      for (j = 0; j < 70; j++) {
+        F[i][j] = 0.0;
+        
+        for (k = 0; k < 80; ++k) {
+          F[i][j] += C[i][k] * D[k][j];
+        }
+      }
+    }
+    
+    
+    
+    for (i = 0; i < 40; i++) {
+      
+      
+      
+      for (j = 0; j < 70; j++) {
+        G[i][j] = 0.0;
+        
+        for (k = 0; k < 50; ++k) {
+          G[i][j] += E[i][k] * F[k][j];
+        }
+      }
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+Here is the optimized C code with HLS pragmas:
+```c
+void kernel_3mm(int ni, int nj, int nk, int nl, int nm, float E[40][50], float A[40][60], float B[60][50], float F[50][70], float C[50][80], float D[80][70], float G[40][70]) {
+  #pragma HLS INTERFACE m_axi port=E offset=slave bundle=gmem
+  #pragma HLS INTERFACE m_axi port=A offset=slave bundle=gmem
+  #pragma HLS INTERFACE m_axi port=B offset=slave bundle=gmem
+  #pragma HLS INTERFACE m_axi port=F offset=slave bundle=gmem
+  #pragma HLS INTERFACE m_axi port=C offset=slave bundle=gmem
+  #pragma HLS INTERFACE m_axi port=D offset=slave bundle=gmem
+  #pragma HLS INTERFACE m_axi port=G offset=slave bundle=gmem
+
+  #pragma HLS DATAFLOW
+
+  #pragma HLS pipeline II=1
+  #pragma HLS pipeline enable_flush
+
+  int i;
+  int j;
+  int k;
+
+  #pragma HLS loop_tripcount min=40 max=40
+  #pragma HLS loop_tripcount min=50 max=50
+  #pragma HLS loop_tripcount min=60 max=60
+
+  for (i = 0; i < 40; i++) {
+    #pragma HLS loop_tripcount min=50 max=50
+    #pragma HLS loop_tripcount min=60 max=60
+
+    for (j = 0; j < 50; j++) {
+      E[i][j] = 0.0;
+      #pragma HLS loop_tripcount min=60 max=60
+
+      for (k = 0; k < 60; ++k) {
+        E[i][j] += A[i][k] * B[k][j];
+      }
+    }
+  }
+
+  #pragma HLS loop_tripcount min=50 max=50
+  #pragma HLS loop_tripcount min=70 max=70
+  #pragma HLS loop_tripcount min=80 max=80
+
+  for (i = 0; i < 50; i++) {
+    #pragma HLS loop_tripcount min=70 max=70
+    #pragma HLS loop_tripcount min=80 max=80
+
+    for (j = 0; j < 70; j++) {
+      F[i][j] = 0.0;
+      #pragma HLS loop_tripcount min=80 max=80
+
+      for (k = 0; k < 80; ++k) {
+        F[i][j] += C[i][k] * D[k][j];
+      }
+    }
+  }
+
+  #pragma HLS loop_tripcount min=40 max=40
+  #pragma HLS loop_tripcount min=70 max=70
+  #pragma HLS loop_tripcount min=50 max=50
+
+  for (i = 0; i < 40; i++) {
+    #pragma HLS loop_tripcount min=70 max=70
+    #pragma HLS loop_tripcount min=50 max=50
+
+    for (j = 0; j < 70; j++) {
+      G[i][j] = 0.0;
+      #pragma HLS loop_tripcount min=50 max=50
+
+      for (k = 0; k < 50; ++k) {
+        G[i][j] += E[i][k] * F[k][j];
+      }
+    }
+  }
+}
+```
+Here's a step-by-step explanation of the HLS optimizations:
+
+1. Interface optimization: We use `#pragma HLS INTERFACE m_axi` to specify the memory interface for each array. This allows the compiler to optimize memory access and allocation.
+2. Dataflow optimization: We use `#pragma HLS DATAFLOW` to specify that the kernel is a dataflow-oriented program. This enables the compiler to optimize data flow and reduce dependencies.
+3. Pipeline optimization: We use `#pragma HLS pipeline` to specify a pipeline with a single iteration (II=1). This allows the compiler to optimize the pipeline and reduce dependencies.
+4. Loop optimization: We use `#pragma HLS loop_tripcount` to specify the trip count for each loop. This allows the compiler to optimize the loop and reduce dependencies.
+5. Memory optimization: We use `#pragma HLS pipeline enable_flush` to enable pipeline flushing, which allows the compiler to optimize memory allocation and deallocation.
+
+By using these HLS pragmas, we can improve the performance and efficiency of the kernel by reducing dependencies, optimizing memory access, and enabling pipeline optimization.

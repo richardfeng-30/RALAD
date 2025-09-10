@@ -1,0 +1,112 @@
+To optimize the given covariance kernel for High-Level Synthesis (HLS) while keeping resource utilization under 80% and compilation time under 1800 seconds, we can apply several well-known HLS optimization strategies. These include loop pipelining, loop unrolling, and array partitioning, which improve throughput and parallelism without excessive resource usage.
+
+---
+
+### Summary of Relevant Optimization Strategies and Pragmas
+
+1. **Loop Pipelining (`#pragma HLS PIPELINE`)**  
+   Pipelining loops allows overlapping of loop iterations, increasing throughput by initiating new iterations before previous ones complete. This is especially effective for innermost loops with data dependencies minimized.
+
+2. **Loop Unrolling (`#pragma HLS UNROLL`)**  
+   Unrolling replicates the loop body multiple times to enable parallel execution of iterations. Partial unrolling (with a factor) balances resource usage and performance.
+
+3. **Array Partitioning (`#pragma HLS ARRAY_PARTITION`)**  
+   Partitioning arrays into smaller blocks or individual elements enables concurrent access to multiple elements, reducing memory bottlenecks.
+
+4. **Dataflow and Function Inlining**  
+   Decomposing the kernel into smaller functions and applying dataflow can improve concurrency, but may increase resource usage and compilation time.
+
+5. **Pragmas Placement**  
+   Pragmas should be applied inside loops or on arrays in the source code to guide the synthesis tool effectively.
+
+---
+
+### Applying Pragmas to the Covariance Kernel
+
+- **Mean Calculation Loop:**  
+  The inner loop summing over `i` can be pipelined to improve throughput. Since the loop is a reduction, care must be taken to avoid data hazards; however, Vivado HLS supports pipelining reductions with proper pragmas.
+
+- **Data Centering Loop:**  
+  The loop subtracting the mean from data can be fully unrolled or partially unrolled depending on resource constraints, as it is a simple element-wise operation.
+
+- **Covariance Calculation Loop:**  
+  The innermost loop over `k` is a reduction and a good candidate for pipelining. The outer loops can be partially unrolled to increase parallelism but should be balanced to keep resource usage under control.
+
+- **Array Partitioning:**  
+  Partitioning the `data` and `cov` arrays along the dimension accessed in parallel can reduce memory access bottlenecks.
+
+---
+
+### Final Optimized Code with Pragmas
+
+```c
+void kernel_covariance(int m, int n, float float_n, float data[100][80], float cov[80][80], float mean[80])
+{
+    int i, j, k;
+
+    // Partition the data array along the second dimension for parallel access
+    #pragma HLS ARRAY_PARTITION variable=data complete dim=2
+    // Partition the cov array along both dimensions for parallel access
+    #pragma HLS ARRAY_PARTITION variable=cov complete dim=2
+    #pragma HLS ARRAY_PARTITION variable=cov complete dim=1
+    // Partition mean array for parallel access
+    #pragma HLS ARRAY_PARTITION variable=mean complete dim=1
+
+    // Calculate mean of each column
+    for (j = 0; j < 80; j++) {
+        mean[j] = 0.0;
+        #pragma HLS PIPELINE II=1
+        for (i = 0; i < 100; i++) {
+            mean[j] += data[i][j];
+        }
+        mean[j] /= float_n;
+    }
+
+    // Subtract mean from data
+    for (i = 0; i < 100; i++) {
+        #pragma HLS PIPELINE II=1
+        for (j = 0; j < 80; j++) {
+            data[i][j] -= mean[j];
+        }
+    }
+
+    // Compute covariance matrix
+    for (i = 0; i < 80; i++) {
+        for (j = i; j < 80; j++) {
+            cov[i][j] = 0.0;
+            #pragma HLS PIPELINE II=1
+            for (k = 0; k < 100; k++) {
+                cov[i][j] += data[k][i] * data[k][j];
+            }
+            cov[i][j] /= (float_n - 1.0);
+            cov[j][i] = cov[i][j];
+        }
+    }
+}
+```
+
+---
+
+### Explanation
+
+- **Array Partitioning:**  
+  The `data` array is partitioned completely along the second dimension (columns) to allow simultaneous access to multiple columns during the covariance calculation and mean subtraction. Similarly, the `cov` matrix is partitioned along both dimensions to enable parallel writes and reads.
+
+- **Loop Pipelining:**  
+  The inner loops in mean calculation, data centering, and covariance computation are pipelined with an initiation interval (II) of 1, allowing new iterations to start every clock cycle, maximizing throughput.
+
+- **Resource and Compilation Time Considerations:**  
+  Complete partitioning increases resource usage but is manageable given the array sizes (100x80). If resource usage exceeds 80%, partial partitioning (e.g., cyclic or block partitioning with a factor) can be applied instead. The pipelining pragmas improve performance without significantly increasing compilation time.
+
+---
+
+### Additional Notes
+
+- If resource usage is too high, consider partial unrolling or partitioning with a factor less than complete.  
+- The covariance matrix is symmetric; only the upper triangle is computed, and the lower triangle is assigned accordingly to save computation.  
+- The `#pragma HLS DEPENDENCE` directive can be used if Vivado HLS reports false dependencies in the reduction loops.  
+- The code assumes `float_n` is the float representation of `n` (number of samples), which is used in division.
+
+---
+
+This approach balances performance improvements with resource and compilation time constraints by leveraging key HLS optimization pragmas effectively [Data: Entities (357, 4955, 3228, 213); Relationships (6729, 6730, 8937, 8939, 7295)].

@@ -1,0 +1,88 @@
+```c
+void kernel_ludcmp(int n,float A[120][120],float b[120],float x[120],float y[120])
+{
+#pragma HLS array_partition variable=A complete dim=2
+#pragma HLS array_partition variable=b complete
+#pragma HLS array_partition variable=x complete
+#pragma HLS array_partition variable=y complete
+
+  int i;
+  int j;
+  int k;
+  float w;
+{
+  // Outer loop i can be pipelined with initiation interval 1 to improve throughput
+#pragma HLS pipeline II=1
+  for (i = 0; i < 120; i++) {
+    // Inner loops can be unrolled partially to increase parallelism without excessive resource usage
+#pragma HLS unroll factor=4
+    for (j = 0; j < i; j++) {
+      w = A[i][j];
+      for (k = 0; k < j; k++) {
+#pragma HLS unroll factor=4
+        w -= A[i][k] * A[k][j];
+      }
+      A[i][j] = w / A[j][j];
+    }
+#pragma HLS unroll factor=4
+    for (j = i; j < 120; j++) {
+      w = A[i][j];
+      for (k = 0; k < i; k++) {
+#pragma HLS unroll factor=4
+        w -= A[i][k] * A[k][j];
+      }
+      A[i][j] = w;
+    }
+  }
+
+#pragma HLS pipeline II=1
+  for (i = 0; i < 120; i++) {
+    w = b[i];
+#pragma HLS unroll factor=4
+    for (j = 0; j < i; j++) {
+      w -= A[i][j] * y[j];
+    }
+    y[i] = w;
+  }
+
+#pragma HLS pipeline II=1
+  for (i = 0; i <= 119; i++) {
+    int _in_i = 119 + -1 * i;
+    w = y[_in_i];
+#pragma HLS unroll factor=4
+    for (j = _in_i + 1; j < 120; j++) {
+      w -= A[_in_i][j] * x[j];
+    }
+    x[_in_i] = w / A[_in_i][_in_i];
+  }
+  i = 0 + -1;
+  }
+}
+```
+
+---
+
+### Summary of Optimization Strategies and Pragma Usage
+
+To optimize the given LU decomposition kernel for performance while keeping resource utilization under 80% and compilation time under 1800 seconds, the following strategies and pragmas are recommended:
+
+1. **Array Partitioning**:  
+   Partitioning arrays, especially multi-dimensional arrays like `A`, into smaller parts or individual elements allows parallel access to multiple elements simultaneously, reducing memory bottlenecks. Complete partitioning of the second dimension of `A` and complete partitioning of vectors `b`, `x`, and `y` can improve parallelism [Data: Entities (3141, 4139, 5966); Relationships (4388, 5966)].
+
+2. **Loop Pipelining**:  
+   Applying `#pragma HLS pipeline II=1` to outer loops enables overlapping execution of loop iterations, increasing throughput by starting a new iteration every clock cycle [Data: Entities (4139, 4955); Relationships (97, 6270)].
+
+3. **Loop Unrolling**:  
+   Partial unrolling of inner loops increases instruction-level parallelism by replicating hardware for loop bodies, but must be balanced to avoid excessive resource usage. Unroll factors like 4 are a good compromise for moderate parallelism [Data: Entities (4139, 4955); Relationships (98, 6257, 7295)].
+
+4. **Balancing Resource and Performance**:  
+   Complete unrolling of large loops can increase resource usage beyond 80%. Partial unrolling and pipelining provide a good tradeoff between performance and resource utilization.
+
+5. **Pragma Placement**:  
+   Pragmas should be placed inside the function, close to the loops or arrays they optimize, to ensure the HLS tool applies them correctly [Data: Entities (2584, 3475)].
+
+By applying these pragmas, the kernel can achieve higher throughput through parallelism and pipelining while controlling resource usage and compilation time.
+
+---
+
+This optimized code and strategy summary are based on best practices for HLS optimization, including array partitioning, loop pipelining, and loop unrolling, as documented in the knowledge base [Data: Entities (4139, 3141, 4955, 5966); Relationships (4388, 6270, 7295, 6257)].

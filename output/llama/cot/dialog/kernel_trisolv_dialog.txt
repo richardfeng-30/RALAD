@@ -1,0 +1,66 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+Optimize the following code by inserting pragma HLS lines. Before responding with any code, think step by step about the HLS optimizations that will improve performance and explain your reasoning. Finally, generate the C code with pragma HLS.
+
+void kernel_trisolv(int n,float L[120][120],float x[120],float b[120])
+{
+  int i;
+  int j;
+{
+    
+    
+    
+    for (i = 0; i < 120; i++) {
+      x[i] = b[i];
+      for (j = 0; j < i; j++) {
+        x[i] -= L[i][j] * x[j];
+      }
+      x[i] = x[i] / L[i][i];
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+Here's the optimized code with HLS pragmas:
+
+```c
+void kernel_trisolv(int n, float L[120][120], float x[120], float b[120])
+{
+  #pragma HLS INTERFACE m_axi port=L offset=slave bundle=gmem
+  #pragma HLS INTERFACE m_axi port=x offset=slave bundle=gmem
+  #pragma HLS INTERFACE m_axi port=b offset=slave bundle=gmem
+  #pragma HLS INTERFACE s_axli port=n
+  #pragma HLS INTERFACE s_axli port=x
+  #pragma HLS INTERFACE s_axli port=b
+  #pragma HLS INTERFACE s_axli port=x
+  
+  #pragma HLS DATAFLOW
+  
+  #pragma HLS LOOP_FLATTEN min_loop_count=120 loop_limit=120
+  for (int i = 0; i < 120; i++) {
+    #pragma HLS LOOP_TRIPCOUNT min=120 max=120 avg=120
+    x[i] = b[i];
+    for (int j = 0; j < i; j++) {
+      #pragma HLS LOOP_FLATTEN min_loop_count=120 loop_limit=120
+      #pragma HLS LOOP_TRIPCOUNT min=120 max=120 avg=120
+      x[i] -= L[i][j] * x[j];
+    }
+    x[i] = x[i] / L[i][i];
+  }
+}
+```
+
+Explanation:
+
+1. `#pragma HLS INTERFACE m_axi`: This directive specifies the interface for the function. In this case, we are using AXI4-Stream interfaces to connect the function to the memory.
+
+2. `#pragma HLS DATAFLOW`: This directive specifies that the function is a dataflow program, which is a type of program that can be executed in parallel.
+
+3. `#pragma HLS LOOP_FLATTEN`: This directive specifies that the loop should be flattened, which means that the loop should be executed in a linear sequence.
+
+4. `#pragma HLS LOOP_TRIPCOUNT`: This directive specifies the minimum, maximum, and average number of iterations for the loop. This information can be used by the HLS compiler to optimize the loop.
+
+By adding these pragmas, the HLS compiler can optimize the code for performance by executing the loops in parallel, reducing memory access latency, and improving data reuse.

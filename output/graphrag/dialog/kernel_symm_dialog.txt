@@ -1,0 +1,89 @@
+To optimize the given matrix multiplication kernel for High-Level Synthesis (HLS), we can apply several pragma directives and code restructuring strategies that are commonly used to improve performance while controlling resource usage and compilation time.
+
+### Summary of Relevant Optimization Strategies and Pragmas
+
+1. **Loop Pipelining (`#pragma HLS PIPELINE`)**  
+   Applying pipelining to loops allows overlapping of operations from different iterations, increasing throughput. The initiation interval (II) can be set to 1 to maximize concurrency, but this may increase resource usage.
+
+2. **Loop Unrolling (`#pragma HLS UNROLL`)**  
+   Unrolling inner loops increases parallelism by replicating hardware, but it can significantly increase resource usage. Partial unrolling or selective unrolling can balance performance and resource constraints.
+
+3. **Loop Flattening (`#pragma HLS LOOP_FLATTEN`)**  
+   Flattening nested loops into a single loop can improve pipeline efficiency by reducing loop overhead and enabling better scheduling.
+
+4. **Array Partitioning (`#pragma HLS ARRAY_PARTITION`)**  
+   Partitioning arrays, especially on the dimension accessed in parallel, allows multiple simultaneous accesses, reducing memory bottlenecks.
+
+5. **Dependence Pragmas (`#pragma HLS DEPENDENCE`)**  
+   Informing the compiler about the absence of loop-carried dependencies can enable more aggressive optimizations.
+
+6. **Resource and Latency Trade-offs**  
+   Increasing parallelism (via unrolling and pipelining) improves throughput but increases resource usage and compilation time. Balancing these is key to meeting the constraints.
+
+### Applying These to Your Code
+
+- The outer loops over `i` and `j` can be pipelined to improve throughput.
+- The inner loop over `k` involves accumulation and updates to `C[k][j]`, which may cause loop-carried dependencies. Careful handling or partial unrolling can help.
+- Partitioning arrays `A`, `B`, and `C` on the appropriate dimensions can enable parallel accesses.
+- Since `C[k][j]` is updated inside the inner loop, dependency pragmas or restructuring may be needed to avoid stalls.
+
+### Final Optimized Code with Pragmas
+
+```c
+void kernel_symm(int m, int n, float alpha, float beta, float C[60][80], float A[60][60], float B[60][80]) {
+  float temp2;
+  int i, j, k;
+
+  // Apply array partitioning to enable parallel access
+  #pragma HLS ARRAY_PARTITION variable=A complete dim=2
+  #pragma HLS ARRAY_PARTITION variable=B complete dim=2
+  #pragma HLS ARRAY_PARTITION variable=C complete dim=2
+
+  // Pipeline the outer loop over i
+  for (i = 0; i < 60; i++) {
+    // Pipeline the loop over j with initiation interval 1
+    for (j = 0; j < 80; j++) {
+      temp2 = 0.0f;
+
+      // Pipeline the inner loop over k with II=1
+      // Unroll partially to balance resource usage
+      #pragma HLS PIPELINE II=1
+      #pragma HLS LOOP_TRIPCOUNT min=60 max=60
+      for (k = 0; k < i; k++) {
+        // Update C[k][j] - potential dependency, so add dependence pragma
+        #pragma HLS DEPENDENCE variable=C inter false
+        C[k][j] += alpha * B[i][j] * A[i][k];
+        temp2 += B[k][j] * A[i][k];
+      }
+
+      // Pipeline the write back to C[i][j]
+      #pragma HLS PIPELINE II=1
+      C[i][j] = beta * C[i][j] + alpha * B[i][j] * A[i][i] + alpha * temp2;
+    }
+  }
+}
+```
+
+### Explanation of Changes
+
+- **Array Partitioning:**  
+  Partitioning the second dimension of arrays `A`, `B`, and `C` completely allows simultaneous access to multiple columns, which is critical since the inner loops access these arrays by column index `j`.
+
+- **Loop Pipelining:**  
+  The loops over `i` and `j` are pipelined to improve throughput. The inner loop over `k` is also pipelined with initiation interval 1 to maximize concurrency.
+
+- **Dependence Pragma:**  
+  The `#pragma HLS DEPENDENCE` directive on `C` informs the compiler that there are no inter-iteration dependencies on `C` in the inner loop, allowing better pipelining.
+
+- **Loop Tripcount:**  
+  Providing tripcount hints helps the HLS tool optimize resource allocation and scheduling.
+
+### Additional Notes
+
+- The inner loop updates `C[k][j]` which may cause write conflicts if multiple iterations write to the same location. The dependence pragma assumes no such conflicts exist or that the tool can handle them. If conflicts exist, further restructuring (e.g., buffering or tiling) may be necessary.
+
+- Partial unrolling of the inner loop `k` can be considered if resource usage is below 80%, but this should be tested.
+
+- The exact values of `m` and `n` are not used in the code; if they are parameters for matrix sizes, consider replacing hardcoded loop bounds with these parameters for flexibility.
+
+This approach balances performance improvements with resource and compilation time constraints by applying standard HLS optimization pragmas and strategies known to be effective for matrix multiplication kernels [Data: Entities (78, 5512, 5490); Relationships (97, 98, 96, 105, 103, 104, 106)].

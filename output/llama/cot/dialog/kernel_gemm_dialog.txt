@@ -1,0 +1,116 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+Optimize the following code by inserting pragma HLS lines. Before responding with any code, think step by step about the HLS optimizations that will improve performance and explain your reasoning. Finally, generate the C code with pragma HLS.
+
+
+void kernel_gemm(int ni,int nj,int nk,float alpha,float beta,float C[60][70],float A[60][80],float B[80][70])
+{
+  int i;
+  int j;
+  int k;
+//BLAS PARAMS
+//TRANSA = 'N'
+//TRANSB = 'N'
+// => Form C := alpha*A*B + beta*C,
+//A is NIxNK
+//B is NKxNJ
+//C is NIxNJ
+{
+    
+    
+    
+    for (i = 0; i < 60; i++) {
+      
+      for (j = 0; j < 70; j++) {
+        C[i][j] *= beta;
+      }
+      
+      
+      
+      for (k = 0; k < 80; k++) {
+        
+        for (j = 0; j < 70; j++) {
+          C[i][j] += alpha * A[i][k] * B[k][j];
+        }
+      }
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+Before optimizing the code, let's analyze the given code:
+
+1. The code is performing a matrix multiplication (GEMM) operation.
+2. The matrices A, B, and C are stored in row-major order.
+3. The innermost loop is performing the actual matrix multiplication.
+4. The outer loops are initializing and updating the result matrix C.
+
+To optimize the code for HLS, we can focus on the following areas:
+
+1. Loop pipelining: Since the innermost loop is performing the actual matrix multiplication, we can pipeline this loop to improve the throughput.
+2. Loop unrolling: Unrolling the innermost loop can reduce the overhead of loop control statements and improve the cache locality.
+3. Memory access optimization: Since the matrices are stored in row-major order, we can optimize the memory access patterns to reduce bank conflicts and improve memory bandwidth.
+4. Data reuse: The code is performing the same operation (matrix multiplication) for each element in the result matrix C. We can reuse the data by storing the intermediate results in registers or on-chip memory.
+
+Here's the optimized C code with HLS pragmas:
+
+```c
+void kernel_gemm(int ni,int nj,int nk,float alpha,float beta,float C[60][70],float A[60][80],float B[80][70])
+{
+    #pragma HLS INTERFACE m_axi port=C offset=slave bundle=gmem
+    #pragma HLS INTERFACE m_axi port=A offset=slave bundle=gmem
+    #pragma HLS INTERFACE m_axi port=B offset=slave bundle=gmem
+
+    int i;
+    int j;
+    int k;
+    float temp[70];
+
+    #pragma HLS DATAFLOW
+
+    // Initialize C with beta
+    for (i = 0; i < 60; i++) {
+        #pragma HLS LOOP_TRIPCOUNT min=1 max=60
+        #pragma HLS PIPELINE II=1
+        for (j = 0; j < 70; j++) {
+            temp[j] = C[i][j] * beta;
+        }
+        #pragma HLS ARRAY_PARTITION variable=temp cyclic factor=4
+        #pragma HLS DATAFLOW
+        for (j = 0; j < 70; j++) {
+            C[i][j] = temp[j];
+        }
+    }
+
+    // Perform matrix multiplication
+    for (i = 0; i < 60; i++) {
+        #pragma HLS LOOP_TRIPCOUNT min=1 max=60
+        for (k = 0; k < 80; k++) {
+            #pragma HLS LOOP_TRIPCOUNT min=1 max=80
+            for (j = 0; j < 70; j++) {
+                #pragma HLS PIPELINE II=1
+                temp[j] = alpha * A[i][k] * B[k][j];
+            }
+            #pragma HLS ARRAY_PARTITION variable=temp cyclic factor=4
+            #pragma HLS DATAFLOW
+            for (j = 0; j < 70; j++) {
+                C[i][j] += temp[j];
+            }
+        }
+    }
+}
+```
+
+In this optimized code, we've added the following HLS pragmas:
+
+1. `#pragma HLS INTERFACE m_axi` directives to specify the memory interfaces for the input and output matrices.
+2. `#pragma HLS DATAFLOW` directives to specify the data flow dependencies between the loops.
+3. `#pragma HLS LOOP_TRIPCOUNT` directives to specify the minimum and maximum trip counts for each loop.
+4. `#pragma HLS PIPELINE` directives to pipeline the innermost loop for matrix multiplication.
+5. `#pragma HLS ARRAY_PARTITION` directives to partition the arrays for better cache locality and data reuse.
+6. `#pragma HLS DATAFLOW` directives to specify the data flow dependencies between the loops.
+
+These pragmas should help the HLS compiler optimize the code for better performance and resource utilization.

@@ -1,0 +1,96 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+You are given some HLS pragma insertion examples.
+
+Example 1: 
+for (i = N − 1; i > 0; i−−) {
+shift reg[i] = shift reg[i − 1];
+}
+shift reg[0] = x;
+acc = 0;
+MAC:
+
+Optimize the following code by inserting pragma HLS lines.
+#include <math.h>
+
+
+void kernel_cholesky(int n,float A[120][120])
+{
+  int i;
+  int j;
+  int k;
+{
+    
+    
+    
+    for (i = 0; i < 120; i++) {
+//j<i
+      
+      for (j = 0; j < i; j++) {
+        for (k = 0; k < j; k++) {
+          A[i][j] -= A[i][k] * A[j][k];
+        }
+        A[i][j] /= A[j][j];
+      }
+// i==j case
+      for (k = 0; k < i; k++) {
+        A[i][i] -= A[i][k] * A[i][k];
+      }
+      A[i][i] = sqrt(A[i][i]);
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+Here is the optimized code with HLS pragmas:
+
+```c
+#include <math.h>
+
+void kernel_cholesky(int n, float A[120][120]) {
+  int i;
+  int j;
+  int k;
+
+  #pragma HLS dataflow
+
+  for (i = 0; i < 120; i++) {
+    #pragma HLS loop_tripcount min=1 max=120
+    #pragma HLS pipeline II=1
+
+    for (j = 0; j < i; j++) {
+      #pragma HLS loop_tripcount min=1 max=i
+      #pragma HLS pipeline II=1
+
+      for (k = 0; k < j; k++) {
+        #pragma HLS pipeline II=1
+        A[i][j] -= A[i][k] * A[j][k];
+      }
+      #pragma HLS pipeline II=1
+      A[i][j] /= A[j][j];
+    }
+    #pragma HLS pipeline II=1
+
+    // i==j case
+    for (k = 0; k < i; k++) {
+      #pragma HLS pipeline II=1
+      A[i][i] -= A[i][k] * A[i][k];
+    }
+    #pragma HLS pipeline II=1
+    A[i][i] = sqrt(A[i][i]);
+  }
+}
+```
+
+In this code, I have added HLS pragmas to specify the data flow, pipeline, and loop trip counts. The `#pragma HLS dataflow` directive indicates that the function should be implemented as a dataflow graph. The `#pragma HLS loop_tripcount` directive specifies the minimum and maximum number of iterations for a loop. The `#pragma HLS pipeline` directive specifies the pipeline depth for a loop or a block of code.
+
+The `#pragma HLS pipeline II=1` directive specifies that the loop or block of code should be unrolled by a factor of 1, which means that each iteration of the loop should be executed in parallel.
+
+The `#pragma HLS loop_tripcount min=1 max=120` directive specifies that the loop should be executed at least once and at most 120 times. This information can be used by the HLS compiler to optimize the code.
+
+The `#pragma HLS pipeline II=1` directive is used to specify the pipeline depth for a loop or a block of code. This directive is used to specify that the loop or block of code should be executed in a pipeline fashion, with each iteration of the loop or block of code being executed in parallel.
+
+Note that the HLS pragmas should be used carefully and only when necessary, as they can affect the performance and correctness of the code.

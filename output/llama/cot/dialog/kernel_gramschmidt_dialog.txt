@@ -1,0 +1,123 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+Optimize the following code by inserting pragma HLS lines. Before responding with any code, think step by step about the HLS optimizations that will improve performance and explain your reasoning. Finally, generate the C code with pragma HLS.
+
+#include <math.h>
+
+void kernel_gramschmidt(int m,int n,float A[60][80],float R[80][80],float Q[60][80])
+{
+  int i;
+  int j;
+  int k;
+  float nrm;
+{
+    
+    
+    
+    for (k = 0; k < 80; k++) {
+      nrm = 0.0;
+      
+      for (i = 0; i < 60; i++) {
+        nrm += A[i][k] * A[i][k];
+      }
+      R[k][k] = sqrt(nrm);
+      
+      for (i = 0; i < 60; i++) {
+        Q[i][k] = A[i][k] / R[k][k];
+      }
+      
+      for (j = k + 1; j < 80; j++) {
+        R[k][j] = 0.0;
+        
+        for (i = 0; i < 60; i++) {
+          R[k][j] += Q[i][k] * A[i][j];
+        }
+        
+        for (i = 0; i < 60; i++) {
+          A[i][j] = A[i][j] - Q[i][k] * R[k][j];
+        }
+      }
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+The given code is a part of the Gram-Schmidt process, which is used to orthogonalize a set of vectors. The code can be optimized using HLS directives to improve performance. Here's the step-by-step optimization process:
+
+1. Identify the loops: The code has three main loops: the outer loop (k), the middle loop (i), and the inner loop (i). The inner loop is nested inside the middle loop.
+
+2. Identify the dependencies: The dependencies in the code are:
+   - The inner loop (i) depends on the middle loop (i) and the outer loop (k).
+   - The middle loop (i) depends on the outer loop (k).
+   - The outer loop (k) has no dependencies.
+
+3. Apply HLS directives:
+   - The outer loop (k) can be pipelined because it has no dependencies. This can be achieved using `#pragma HLS pipeline`.
+   - The middle loop (i) can be unrolled because it has no dependencies and is nested inside the outer loop. This can be achieved using `#pragma HLS unroll`.
+   - The inner loop (i) can be unrolled because it has no dependencies and is nested inside the middle loop. This can be achieved using `#pragma HLS unroll`.
+
+4. Apply memory optimizations:
+   - The arrays A, R, and Q can be stored in BRAM (Block RAM) to reduce memory access latency. This can be achieved using `#pragma HLS resource variable`.
+
+Here's the optimized code:
+
+```c
+#include <math.h>
+
+void kernel_gramschmidt(int m,int n,float A[60][80],float R[80][80],float Q[60][80])
+{
+  #pragma HLS dataflow
+  #pragma HLS pipeline II=1
+
+  int i;
+  int j;
+  int k;
+  float nrm;
+  
+  for (k = 0; k < 80; k++) {
+    #pragma HLS loop_tripcount min=1 max=80
+    #pragma HLS unroll
+    nrm = 0.0;
+    
+    for (i = 0; i < 60; i++) {
+      #pragma HLS loop_tripcount min=1 max=60
+      #pragma HLS unroll
+      nrm += A[i][k] * A[i][k];
+    }
+    R[k][k] = sqrt(nrm);
+    
+    for (i = 0; i < 60; i++) {
+      #pragma HLS loop_tripcount min=1 max=60
+      #pragma HLS unroll
+      Q[i][k] = A[i][k] / R[k][k];
+    }
+    
+    for (j = k + 1; j < 80; j++) {
+      #pragma HLS loop_tripcount min=1 max=79
+      #pragma HLS unroll
+      R[k][j] = 0.0;
+      
+      for (i = 0; i < 60; i++) {
+        #pragma HLS loop_tripcount min=1 max=60
+        #pragma HLS unroll
+        R[k][j] += Q[i][k] * A[i][j];
+      }
+      
+      for (i = 0; i < 60; i++) {
+        #pragma HLS loop_tripcount min=1 max=60
+        #pragma HLS unroll
+        A[i][j] = A[i][j] - Q[i][k] * R[k][j];
+      }
+    }
+  }
+}
+
+#pragma HLS resource variable A T:8 storage:RAM
+#pragma HLS resource variable R T:8 storage:RAM
+#pragma HLS resource variable Q T:8 storage:RAM
+```
+
+In this optimized code, the outer loop (k) is pipelined using `#pragma HLS pipeline II=1`. The middle and inner loops (i) are unrolled using `#pragma HLS unroll`. The arrays A, R, and Q are stored in BRAM using `#pragma HLS resource variable`. The loop trip counts are specified using `#pragma HLS loop_tripcount` to guide the HLS compiler in optimizing the code.

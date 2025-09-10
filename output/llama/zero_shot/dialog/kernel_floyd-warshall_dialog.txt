@@ -1,0 +1,69 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+Optimize the following code by inserting pragma HLS lines.
+
+void kernel_floyd_warshall(int n,int path[180][180])
+{
+  int i;
+  int j;
+  int k;
+{
+    
+    
+    
+    for (k = 0; k < 180; k++) {
+      
+      
+      
+      for (i = 0; i < 180; i++) {
+        
+        for (j = 0; j < 180; j++) {
+          path[i][j] = (path[i][j] < path[i][k] + path[k][j]?path[i][j] : path[i][k] + path[k][j]);
+        }
+      }
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+Here is the optimized code with HLS pragmas:
+
+```c
+void kernel_floyd_warshall(int n, int path[180][180])
+{
+  #pragma HLS INTERFACE m_axi port=path offset=slave bundle=gmem
+  #pragma HLS INTERFACE s_axilite port=n
+  #pragma HLS INTERFACE s_axilite port=return
+
+  int i;
+  int j;
+  int k;
+
+  #pragma HLS DATAFLOW
+  #pragma HLS depend variable path
+
+  for (k = 0; k < 180; k++) {
+    #pragma HLS PIPELINE II=1
+    for (i = 0; i < 180; i++) {
+      for (j = 0; j < 180; j++) {
+        path[i][j] = (path[i][j] < path[i][k] + path[k][j]?path[i][j] : path[i][k] + path[k][j]);
+      }
+    }
+  }
+}
+```
+
+The above code is optimized for a hardware accelerator. The pragmas used are:
+
+1. `#pragma HLS INTERFACE`: This directive is used to specify the interfaces of the kernel. In this case, it is used to specify the AXI4 interfaces for the `path` array and the `n` and `return` variables.
+
+2. `#pragma HLS DATAFLOW`: This directive is used to specify that the kernel is a dataflow program. This is necessary for the HLS compiler to generate an efficient implementation.
+
+3. `#pragma HLS depend variable path`: This directive is used to specify that the `path` array is a dependent variable. This is necessary for the HLS compiler to generate an efficient implementation.
+
+4. `#pragma HLS PIPELINE II=1`: This directive is used to specify that the innermost loop is a pipeline. The `II=1` specifies that the pipeline should be unrolled by a factor of 1, which means that each iteration of the loop will be executed in a separate clock cycle.
+
+Note: The above code is just an example and may need to be modified based on the specific requirements of your project.

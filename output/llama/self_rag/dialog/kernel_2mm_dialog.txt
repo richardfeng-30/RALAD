@@ -1,0 +1,165 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+You are given some HLS pragma insertion examples.
+
+Example 1: 
+// Calculate matrix multiplication using local data buffer based on input size,
+// and write results into local buffer for out
+loop_count:
+    for (int i = 0; i < rep_count; i++) {
+    arraypart1:
+        for (int row = 0; row < size; row++) {
+#pragma HLS LOOP_TRIPCOUNT min = c_dim max = c_dim
+        arraypart2:
+            for (int col = 0; col < size; col++) {
+#pragma HLS LOOP_TRIPCOUNT min = c_dim max = c_dim
+            arraypart3:
+                for (int j = 0; j < MAX_SIZE; j++) {
+#pragma HLS LOOP_TRIPCOUNT min = c_dim max = c_dim
+                    int result = (col == 0) ? 0 : temp_sum[j];
+                    result += A[row][col] * B[col][j];
+                    temp_sum[j] = result;
+                    if (col == size - 1) C[row][j] = result;
+                }
+            }
+        }
+    }
+
+Example 2: 
+7.2 Complete Matrix Multiplication
+We start our optimization process with perhaps the most common method to compute a matrix
+multiplication – using three nested for loops. Figure 7.1 provides the code for such an implementation. The outer for loops, labeled rows and cols, iterate across the rows and columns of the output
+matrix AB. The innermost for loop computes a dot product of one row of A and one column of
+B. Each dot product is a completely independent set of computations that results in one element
+of AB. Conceptually, we are performing P matrix-vector multiplications, one for each column of
+B.
+In this case, we’ve applied a pipeline directive to the col loop with a target initiation interval of 1.
+The result is that the innermost for loop is fully unrolled, and we expect the resulting circuit include
+roughly M multiply-add operators and to have an interval of roughly N ∗ P cycles. As discussed
+
+Example 3: 
+// Burst write from output matrices to global memory
+// Burst write from matrix C
+writeC:
+    for (int itr = 0, i = 0, j = 0; itr < dim * dim; itr++, j++) {
+#pragma HLS LOOP_TRIPCOUNT min = c_dim* c_dim max = c_dim * c_dim
+        if (j == dim) {
+            j = 0;
+            i++;
+        }
+        out_r[itr] = C[i * MAX_DIM + j];
+    }
+}
+
+
+================================================================================
+Example: Array/array_partition_complete
+================================================================================
+--- README ---
+This is a simple example of matrix multiplication (Row x Col) to demonstrate complete array partitioning pragma in HLS
+
+Running the Design using Vitis HLS (edit run_hls.tcl to set $hls_exec and enable specific run steps)
+=========================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+Optimize the following code by inserting pragma HLS lines.
+//2 Matrix Multiplications
+
+
+void kernel_2mm(int ni,int nj,int nk,int nl,float alpha,float beta,float tmp[40][50],float A[40][70],float B[70][50],float C[50][80],float D[40][80])
+{
+  int i;
+  int j;
+  int k;
+{
+    
+    
+    
+    for (i = 0; i < 40; i++) {
+      
+      
+      
+      for (j = 0; j < 50; j++) {
+        tmp[i][j] = 0.0;
+        
+        for (k = 0; k < 70; ++k) {
+          tmp[i][j] += alpha * A[i][k] * B[k][j];
+        }
+      }
+    }
+    
+    
+    
+    for (i = 0; i < 40; i++) {
+      
+      
+      
+      for (j = 0; j < 80; j++) {
+        D[i][j] *= beta;
+        
+        for (k = 0; k < 50; ++k) {
+          D[i][j] += tmp[i][k] * C[k][j];
+        }
+      }
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+Here is the optimized C code with HLS pragmas:
+
+```c
+void kernel_2mm(int ni,int nj,int nk,int nl,float alpha,float beta,float tmp[40][50],float A[40][70],float B[70][50],float C[50][80],float D[40][80])
+{
+  #pragma HLS INTERFACE m_axi port=tmp offset=slave bundle=gmem
+  #pragma HLS INTERFACE m_axi port=A offset=slave bundle=gmem
+  #pragma HLS INTERFACE m_axi port=B offset=slave bundle=gmem
+  #pragma HLS INTERFACE m_axi port=C offset=slave bundle=gmem
+  #pragma HLS INTERFACE m_axi port=D offset=slave bundle=gmem
+  #pragma HLS INTERFACE s_axilite port=return bundle=control
+  #pragma HLS INTERFACE s_axilite port=alpha bundle=control
+  #pragma HLS INTERFACE s_axilite port=beta bundle=control
+  #pragma HLS INTERFACE s_axilite port=ni bundle=control
+  #pragma HLS INTERFACE s_axilite port=nj bundle=control
+  #pragma HLS INTERFACE s_axilite port=nk bundle=control
+  #pragma HLS INTERFACE s_axilite port=nl bundle=control
+
+  #pragma HLS DATAFLOW
+
+  //2 Matrix Multiplications
+  #pragma HLS DATAFLOW
+  for (int i = 0; i < ni; i++) {
+    #pragma HLS LOOP_TRIPCOUNT min=40 max=40
+    for (int j = 0; j < nj; j++) {
+      #pragma HLS LOOP_TRIPCOUNT min=50 max=50
+      tmp[i][j] = 0.0;
+      
+      #pragma HLS DATAFLOW
+      for (int k = 0; k < nk; ++k) {
+        #pragma HLS LOOP_TRIPCOUNT min=70 max=70
+        tmp[i][j] += alpha * A[i][k] * B[k][j];
+      }
+    }
+  }
+  
+  #pragma HLS DATAFLOW
+  for (int i = 0; i < ni; i++) {
+    #pragma HLS LOOP_TRIPCOUNT min=40 max=40
+    for (int j = 0; j < nl; j++) {
+      #pragma HLS LOOP_TRIPCOUNT min=80 max=80
+      D[i][j] *= beta;
+      
+      #pragma HLS DATAFLOW
+      for (int k = 0; k < nj; ++k) {
+        #pragma HLS LOOP_TRIPCOUNT min=50 max=50
+        D[i][j] += tmp[i][k] * C[k][j];
+      }
+    }
+  }
+}
+```
+
+Note: The HLS pragmas are used to specify the interfaces, dataflow, and loop tripcounts for the kernel function. The pragmas `#pragma HLS INTERFACE` specify the interfaces for the kernel function, including the memory-mapped interfaces for the arrays and the AXI-Lite interfaces for the control signals. The pragmas `#pragma HLS DATAFLOW` specify the dataflow between the loops and the pragmas `#pragma HLS LOOP_TRIPCOUNT` specify the minimum and maximum tripcounts for the loops.

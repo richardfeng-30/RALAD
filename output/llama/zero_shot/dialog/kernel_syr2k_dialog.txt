@@ -1,0 +1,80 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+Optimize the following code by inserting pragma HLS lines.
+void kernel_syr2k(int n,int m,float alpha,float beta,float C[80][80],float A[80][60],float B[80][60])
+{
+  int i;
+  int j;
+  int k;
+//BLAS PARAMS
+//UPLO  = 'L'
+//TRANS = 'N'
+//A is NxM
+//B is NxM
+//C is NxN
+{
+    
+    
+    
+    for (i = 0; i < 80; i++) {
+      for (j = 0; j <= i; j++) {
+        C[i][j] *= beta;
+      }
+      
+      
+      
+      for (k = 0; k < 60; k++) {
+        for (j = 0; j <= i; j++) {
+          C[i][j] += A[j][k] * alpha * B[i][k] + B[j][k] * alpha * A[i][k];
+        }
+      }
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+Here is the optimized code with HLS pragmas:
+
+```c
+void kernel_syr2k(int n, int m, float alpha, float beta, float C[80][80], float A[80][60], float B[80][60])
+{
+  #pragma HLS INTERFACE m_axi port=C offset=slave bundle=gmem
+  #pragma HLS INTERFACE m_axi port=A offset=slave bundle=gmem
+  #pragma HLS INTERFACE m_axi port=B offset=slave bundle=gmem
+  
+  int i;
+  int j;
+  int k;
+  
+  #pragma HLS DATAFLOW
+  
+  for (i = 0; i < 80; i++) {
+    #pragma HLS LOOP_TRIPCOUNT min=1 max=80 avg=40
+    #pragma HLS UNROLL factor=4
+    for (j = 0; j <= i; j++) {
+      #pragma HLS LOOP_TRIPCOUNT min=1 max=40 avg=20
+      C[i][j] *= beta;
+    }
+    
+    for (k = 0; k < 60; k++) {
+      #pragma HLS LOOP_TRIPCOUNT min=1 max=60 avg=30
+      for (j = 0; j <= i; j++) {
+        #pragma HLS LOOP_TRIPCOUNT min=1 max=40 avg=20
+        C[i][j] += A[j][k] * alpha * B[i][k] + B[j][k] * alpha * A[i][k];
+      }
+    }
+  }
+}
+```
+
+This code includes the following HLS pragmas:
+
+1. `#pragma HLS INTERFACE m_axi` for the memory interfaces.
+2. `#pragma HLS DATAFLOW` to indicate that the function is a dataflow-oriented function.
+3. `#pragma HLS LOOP_TRIPCOUNT` to specify the minimum, maximum, and average trip counts for each loop.
+4. `#pragma HLS UNROLL` to specify the unroll factor for each loop.
+
+These pragmas help the HLS compiler to optimize the code for better performance and resource utilization.

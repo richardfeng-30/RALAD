@@ -1,0 +1,198 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+You are given some HLS pragma insertion examples.
+
+Example 1: 
+FAST FOURIER TRANSFORM
+
+starting with the 2 point DFT. Recall that the DFT performs a matrix vector multiplication, i.e.,
+G[] = S[][] · g[], where g[] is the input data, G[] is the frequency domain output data, and S[][] are
+the DFT coefficients. We follow the same notation for the coefficient matrix, and the input and
+output vectors as described in Chapter ??.
+For a 2 point DFT, the values of S are:
+ 00
+
+W2 W201
+S=
+(5.1)
+W210 W211
+Here we use the notation W = e−j2π . The superscript on W denotes values that are added to
+the numerator and the subscript on the W indicates those values added in the denominator of the
+−j2π·2·3
+complex exponential. For example, W423 = e 4 . This is similar to the s value used in the DFT
+−j2π
+discussion (Chapter ??) where s = e N . The relationship between s and W is s = WN .
+The e−j2π or W terms are often called twiddle factors. This term has its origin in the 1966
+paper by Gentleman and Sande [27].
+
+
+
+Example 2: 
+in analyzing algorithms, see [17].
+The Fast Fourier Transform (FFT) uses a divide-and-conquer approach based on the symmetry
+of the S matrix. The FFT was made popular by the Cooley-Tukey algorithm [16], which requires
+O(n log n) operations to compute the same function as the DFT. This can provide a substantial
+speedup, especially when performing the Fourier transform on large signals.
+The divide-and-conquer approach to computing the DFT was initially developed by Karl
+Friedrich Gauss in the early 19th century. However, since Gauss’ work on this was not published
+during his lifetime and only appeared in a collected works after his death, it was relegated to
+obscurity. Heideman et al. [32] provide a nice background on the history of the FFT.
+The focus of this chapter is to provide the reader with a good understanding of the FFT
+algorithm since that is an important part of creating an optimized hardware design. Thus, we start
+
+Example 3: 
+void fft(DTYPE X R[SIZE], DTYPE X I[SIZE], DTYPE OUT R[SIZE], DTYPE OUT I[SIZE])
+{
+#pragma HLS dataflow
+DTYPE Stage1 R[SIZE], Stage1 I[SIZE];
+DTYPE Stage2 R[SIZE], Stage2 I[SIZE];
+DTYPE Stage3 R[SIZE], Stage3 I[SIZE];
+bit reverse(X R, X I, Stage1 R, Stage1 I);
+fft stage one(Stage1 R, Stage1 I, Stage2 R, Stage2 I);
+fft stages two(Stage2 R, Stage2 I, Stage3 R, Stage3 R);
+fft stage three(Stage3 R, Stage3 I, OUT R, OUT I);
+}
+Figure 5.7: The code divides an 8 point FFT into four stages, each of which is a separate function.
+The bit reverse function is the first stages. And there are three stages for the 8 point FFT.
+
+What is the latency of the reverse bits function when no directives are applied? What is the
+latency when the loop is pipelined? What is the latency when the whole function is pipelined?
+
+Optimize the following code by inserting pragma HLS lines.
+
+void kernel_fdtd_2d(int tmax,int nx,int ny,float ex[60][80],float ey[60][80],float hz[60][80],float _fict_[40])
+{
+  int t;
+  int i;
+  int j;
+{
+    
+    
+    
+    for (t = 0; t < 40; t++) {
+      
+      for (j = 0; j < 80; j++) {
+        ey[0][j] = _fict_[t];
+      }
+      
+      
+      
+      for (i = 1; i < 60; i++) {
+        
+        for (j = 0; j < 80; j++) {
+          ey[i][j] = ey[i][j] - 0.5 * (hz[i][j] - hz[i - 1][j]);
+        }
+      }
+      
+      
+      
+      for (i = 0; i < 60; i++) {
+        
+        for (j = 1; j < 80; j++) {
+          ex[i][j] = ex[i][j] - 0.5 * (hz[i][j] - hz[i][j - 1]);
+        }
+      }
+      
+      
+      
+      for (i = 0; i < 60 - 1; i++) {
+        
+        for (j = 0; j < 80 - 1; j++) {
+          hz[i][j] = hz[i][j] - 0.7 * (ex[i][j + 1] - ex[i][j] + ey[i + 1][j] - ey[i][j]);
+        }
+      }
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+Here are the optimized C code with HLS pragmas for the given examples:
+
+**Example 1: Fast Fourier Transform**
+
+```c
+void fft(DTYPE X R[SIZE], DTYPE X I[SIZE], DTYPE OUT R[SIZE], DTYPE OUT I[SIZE])
+{
+#pragma HLS dataflow
+DTYPE Stage1 R[SIZE], Stage1 I[SIZE];
+DTYPE Stage2 R[SIZE], Stage2 I[SIZE];
+DTYPE Stage3 R[SIZE], Stage3 I[SIZE];
+
+#pragma HLS pipeline II=1
+bit_reverse(X R, X I, Stage1 R, Stage1 I);
+fft_stage_one(Stage1 R, Stage1 I, Stage2 R, Stage2 I);
+fft_stages_two(Stage2 R, Stage2 I, Stage3 R, Stage3 I);
+fft_stage_three(Stage3 R, Stage3 I, OUT R, OUT I);
+}
+
+void bit_reverse(DTYPE X R[SIZE], DTYPE X I[SIZE], DTYPE OUT R[SIZE], DTYPE OUT I[SIZE])
+{
+#pragma HLS pipeline II=1
+for (int i = 0; i < SIZE; i++) {
+    OUT R[i] = X R[reverse_bits(i)];
+    OUT I[i] = X I[reverse_bits(i)];
+}
+}
+
+int reverse_bits(int x)
+{
+    int result = 0;
+    for (int i = 0; i < sizeof(int) * 8; i++) {
+        result = (result << 1) | (x & 1);
+        x >>= 1;
+    }
+    return result;
+}
+```
+
+**Latency analysis:**
+
+1. Without directives: The latency of the `bit_reverse` function is `O(SIZE)`, which is the number of iterations in the loop.
+2. With pipeline directive: The latency is reduced to `O(1)` since the loop is pipelined.
+3. With whole function pipelining: The latency is still `O(1)` since the entire function is pipelined.
+
+**Example 2: FDTD 2D**
+
+```c
+void kernel_fdtd_2d(int tmax,int nx,int ny,float ex[60][80],float ey[60][80],float hz[60][80],float _fict_[40])
+{
+#pragma HLS dataflow
+#pragma HLS pipeline II=1
+
+int t;
+int i;
+int j;
+for (t = 0; t < 40; t++) {
+    for (j = 0; j < 80; j++) {
+        ey[0][j] = _fict_[t];
+    }
+
+    for (i = 1; i < 60; i++) {
+        for (j = 0; j < 80; j++) {
+            ey[i][j] = ey[i][j] - 0.5 * (hz[i][j] - hz[i - 1][j]);
+        }
+    }
+
+    for (i = 0; i < 60; i++) {
+        for (j = 1; j < 80; j++) {
+            ex[i][j] = ex[i][j] - 0.5 * (hz[i][j] - hz[i][j - 1]);
+        }
+    }
+
+    for (i = 0; i < 60 - 1; i++) {
+        for (j = 0; j < 80 - 1; j++) {
+            hz[i][j] = hz[i][j] - 0.7 * (ex[i][j + 1] - ex[i][j] + ey[i + 1][j] - ey[i][j]);
+        }
+    }
+}
+}
+```
+
+**Latency analysis:**
+
+1. Without directives: The latency is `O(tmax * nx * ny)`, which is the number of iterations in the loops.
+2. With pipeline directive: The latency is reduced to `O(tmax)`, since the loops are pipelined.
+3. With whole function pipelining: The latency is still `O(tmax)`, since the entire function is pipelined.

@@ -1,0 +1,86 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+Optimize the following code by inserting pragma HLS lines. Before responding with any code, think step by step about the HLS optimizations that will improve performance and explain your reasoning. Finally, generate the C code with pragma HLS.
+
+void kernel_mvt(int n,float x1[120],float x2[120],float y_1[120],float y_2[120],float A[120][120])
+{
+  int i;
+  int j;
+{
+    
+    
+    
+    for (i = 0; i < 120; i++) {
+      
+      for (j = 0; j < 120; j++) {
+        x1[i] = x1[i] + A[i][j] * y_1[j];
+      }
+    }
+    
+    
+    
+    for (i = 0; i < 120; i++) {
+      
+      for (j = 0; j < 120; j++) {
+        x2[i] = x2[i] + A[j][i] * y_2[j];
+      }
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+To optimize this code for HLS, we need to consider the following:
+
+1. Loop Unrolling: HLS can benefit from loop unrolling, which can reduce the number of loop iterations and improve the performance.
+
+2. Memory Access: HLS can optimize memory access patterns, which can improve the performance by reducing memory accesses.
+
+3. Pipeline: HLS can pipeline the code, which can improve the performance by executing multiple instructions at the same time.
+
+Here is the optimized code with pragma HLS:
+
+```c
+void kernel_mvt(int n, float x1[120], float x2[120], float y_1[120], float y_2[120], float A[120][120]) {
+    #pragma HLS INTERFACE m_axis port=x1 offset=slave bundle=gmem
+    #pragma HLS INTERFACE m_axis port=x2 offset=slave bundle=gmem
+    #pragma HLS INTERFACE m_axis port=y_1 offset=slave bundle=gmem
+    #pragma HLS INTERFACE m_axis port=y_2 offset=slave bundle=gmem
+    #pragma HLS INTERFACE m_axis port=A offset=slave bundle=gmem
+
+    int i;
+    int j;
+
+    #pragma HLS PIPELINE II=1
+    for (i = 0; i < 120; i += 4) {
+        for (j = 0; j < 120; j += 4) {
+            x1[i] = x1[i] + A[i][j] * y_1[j];
+            x1[i+1] = x1[i+1] + A[i+1][j] * y_1[j+1];
+            x1[i+2] = x1[i+2] + A[i+2][j] * y_1[j+2];
+            x1[i+3] = x1[i+3] + A[i+3][j] * y_1[j+3];
+        }
+    }
+
+    #pragma HLS PIPELINE II=1
+    for (i = 0; i < 120; i += 4) {
+        for (j = 0; j < 120; j += 4) {
+            x2[i] = x2[i] + A[j][i] * y_2[j];
+            x2[i+1] = x2[i+1] + A[j+1][i] * y_2[j+1];
+            x2[i+2] = x2[i+2] + A[j+2][i] * y_2[j+2];
+            x2[i+3] = x2[i+3] + A[j+3][i] * y_2[j+3];
+        }
+    }
+}
+```
+
+In this code, we have added the following HLS pragmas:
+
+1. `#pragma HLS INTERFACE m_axis` is used to specify the memory interface for the function.
+
+2. `#pragma HLS PIPELINE II=1` is used to pipeline the code. The `II` directive specifies the iteration interval for the pipeline.
+
+3. `#pragma HLS UNROLL` is used to unroll the loops. However, in this case, we have manually unrolled the loops by a factor of 4.
+
+These pragmas can help the HLS compiler to generate more efficient code for the given function.

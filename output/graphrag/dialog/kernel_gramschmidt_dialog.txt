@@ -1,0 +1,93 @@
+### Summary of Relevant Pragmas and Optimization Strategies for HLS
+
+To optimize the given C code for High-Level Synthesis (HLS) while keeping resource utilization under 80% and compilation time under 1800 seconds, several pragma directives and strategies can be applied:
+
+1. **Loop Pipelining (`#pragma HLS PIPELINE`)**  
+   This pragma enables initiation interval (II) of 1 for loops, allowing new iterations to start every clock cycle, thus improving throughput significantly. It is especially useful for innermost loops with independent iterations.
+
+2. **Loop Unrolling (`#pragma HLS UNROLL`)**  
+   Unrolling loops can increase parallelism by replicating hardware for loop iterations. However, full unrolling can increase resource usage drastically, so partial unrolling or selective unrolling is preferred to balance resource usage and performance.
+
+3. **Array Partitioning (`#pragma HLS ARRAY_PARTITION`)**  
+   Partitioning arrays into smaller memories or registers can improve memory bandwidth and enable parallel access, which is critical for nested loops accessing arrays multiple times.
+
+4. **Loop Tripcount (`#pragma HLS LOOP_TRIPCOUNT`)**  
+   Specifying loop trip counts helps the HLS tool optimize resource allocation and performance estimates.
+
+5. **Resource Allocation Control (`#pragma HLS ALLOCATION`)**  
+   This pragma can limit the number of hardware resources (e.g., multipliers) used, helping to keep resource utilization under a target threshold.
+
+6. **Function Inlining and Dataflow**  
+   While not directly applicable here, inlining and dataflow pragmas can improve performance by enabling concurrent execution of functions or loops.
+
+### Applying Pragmas to the Given Code
+
+The kernel contains three nested loops with significant computation:
+
+- The innermost loops (over `i`) perform vector operations that can be pipelined.
+- The middle loops (over `j` and `k`) control the Gram-Schmidt orthogonalization steps.
+
+To optimize:
+
+- Pipeline the innermost loops to improve throughput.
+- Partition arrays `A` and `Q` along the dimension accessed in the innermost loops to enable parallel access.
+- Use loop tripcount pragmas to help the tool optimize.
+- Limit resource usage by controlling allocation pragmas if needed (not shown here explicitly but can be added if resource usage is high).
+
+### Final Optimized Code with Pragmas
+
+```c
+#include <math.h>
+
+void kernel_gramschmidt(int m, int n, float A[60][80], float R[80][80], float Q[60][80])
+{
+    int i, j, k;
+    float nrm;
+
+    // Partition arrays along the first dimension for parallel access
+    #pragma HLS ARRAY_PARTITION variable=A complete dim=1
+    #pragma HLS ARRAY_PARTITION variable=Q complete dim=1
+
+    for (k = 0; k < 80; k++) {
+        nrm = 0.0;
+
+        // Pipeline the loop to accumulate norm
+        #pragma HLS PIPELINE II=1
+        for (i = 0; i < 60; i++) {
+            nrm += A[i][k] * A[i][k];
+        }
+        R[k][k] = sqrt(nrm);
+
+        // Pipeline the loop to compute Q
+        #pragma HLS PIPELINE II=1
+        for (i = 0; i < 60; i++) {
+            Q[i][k] = A[i][k] / R[k][k];
+        }
+
+        for (j = k + 1; j < 80; j++) {
+            R[k][j] = 0.0;
+
+            // Pipeline the loop to compute R[k][j]
+            #pragma HLS PIPELINE II=1
+            for (i = 0; i < 60; i++) {
+                R[k][j] += Q[i][k] * A[i][j];
+            }
+
+            // Pipeline the loop to update A
+            #pragma HLS PIPELINE II=1
+            for (i = 0; i < 60; i++) {
+                A[i][j] = A[i][j] - Q[i][k] * R[k][j];
+            }
+        }
+    }
+}
+```
+
+### Explanation
+
+- **Array Partitioning**: `A` and `Q` are partitioned completely along the first dimension (`dim=1`), which corresponds to the index `i` in the loops. This allows simultaneous access to multiple elements in the `i` dimension, enabling parallelism in the innermost loops.
+- **Loop Pipelining**: The innermost loops over `i` are pipelined with an initiation interval (II) of 1, allowing new iterations to start every clock cycle, maximizing throughput.
+- **Resource Utilization**: By pipelining and partitioning arrays, the design balances parallelism and resource usage. If resource usage exceeds 80%, further tuning with partial unrolling or allocation pragmas can be applied.
+- **Compilation Time**: The pragmas used are standard and should not significantly increase compilation time beyond the 1800s limit.
+
+This approach leverages key HLS optimization techniques to improve performance while controlling resource usage and compilation time [Data: PRAGMAS (357), PRAGMA_HLS_PERFORMANCE (303), PRAGMA_HLS_ALLOCATION (292), HLS_OPTIMIZATION_TECHNIQUES (4337), OPTIMIZATION_DIRECTIVES (213)].

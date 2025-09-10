@@ -1,0 +1,69 @@
+To optimize the given LU decomposition kernel for High-Level Synthesis (HLS), we can apply several well-known pragma directives and code restructuring techniques. The goal is to improve performance (throughput and latency) while keeping resource utilization under 80% and compilation time reasonable.
+
+### Relevant Pragmas and Optimization Strategies
+
+1. **Loop Pipelining (`#pragma HLS pipeline`)**  
+   Pipelining loops is a key technique to improve throughput by initiating new loop iterations before previous ones complete. This reduces the initiation interval (II) and increases parallelism.
+
+2. **Loop Unrolling (`#pragma HLS unroll`)**  
+   Unrolling loops can increase parallelism by replicating hardware for loop iterations. Partial unrolling can balance resource usage and performance.
+
+3. **Array Partitioning (`#pragma HLS array_partition`)**  
+   Partitioning arrays, especially multi-dimensional arrays, allows parallel access to multiple elements, reducing memory bottlenecks.
+
+4. **Resource Allocation Control (`#pragma HLS allocation`)**  
+   Limits the number of hardware resources (e.g., multipliers) to control area and resource usage.
+
+5. **Function Inlining and Dataflow**  
+   For larger designs, function inlining and dataflow pragmas can improve concurrency, but here the kernel is a single function.
+
+6. **Performance Pragmas (`#pragma HLS performance`)**  
+   Setting target initiation intervals for loops to guide the tool in optimization.
+
+### Application to the LU Kernel
+
+- The outer loop `i` is sequential due to data dependencies, but inner loops `j` and `k` can be optimized.
+- The nested loops over `j` and `k` can be pipelined and partially unrolled to improve throughput.
+- The array `A` can be partitioned along the second dimension to allow parallel access to columns.
+- Resource allocation pragmas can be used to limit multipliers to keep resource usage under 80%.
+
+### Final Optimized Code with Pragmas
+
+```c
+void kernel_lu(int n, float A[120][120]) {
+#pragma HLS array_partition variable=A complete dim=2
+  int i, j, k;
+
+  for (i = 0; i < 120; i++) {
+    // Pipeline the outer j loop to improve throughput
+    for (j = 0; j < i; j++) {
+#pragma HLS pipeline II=1
+      for (k = 0; k < j; k++) {
+#pragma HLS unroll factor=4
+        A[i][j] -= A[i][k] * A[k][j];
+      }
+      A[i][j] /= A[j][j];
+    }
+
+    for (j = i; j < 120; j++) {
+#pragma HLS pipeline II=1
+      for (k = 0; k < i; k++) {
+#pragma HLS unroll factor=4
+        A[i][j] -= A[i][k] * A[k][j];
+      }
+    }
+  }
+}
+```
+
+### Explanation
+
+- `#pragma HLS array_partition variable=A complete dim=2` partitions the array `A` completely along the second dimension, enabling parallel access to all columns, which is critical for the inner loops accessing `A[i][k]` and `A[k][j]`.
+- The inner loops over `k` are partially unrolled with a factor of 4 to balance parallelism and resource usage.
+- The loops over `j` are pipelined with an initiation interval (II) of 1 to maximize throughput.
+- The outer loop `i` is kept sequential due to data dependencies inherent in LU decomposition.
+- This approach aims to improve performance while controlling resource usage and compilation time.
+
+These optimizations are based on common HLS techniques such as loop pipelining, unrolling, and array partitioning, which are essential for efficient FPGA implementations [Data: OPTIMIZATION DIRECTIVES (213), PRAGMAS (357), PRAGMA_HLS_PERFORMANCE (303), PRAGMA HLS ARRAY PARTITION COMPLETE DIM=1 (5387), PRAGMA_HLS_ALLOCATION (292)].
+
+If further resource constraints are encountered, the unroll factor can be reduced or resource allocation pragmas can be added to limit the number of multipliers used.

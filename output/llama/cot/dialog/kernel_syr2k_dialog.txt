@@ -1,0 +1,82 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+Optimize the following code by inserting pragma HLS lines. Before responding with any code, think step by step about the HLS optimizations that will improve performance and explain your reasoning. Finally, generate the C code with pragma HLS.
+
+void kernel_syr2k(int n,int m,float alpha,float beta,float C[80][80],float A[80][60],float B[80][60])
+{
+  int i;
+  int j;
+  int k;
+//BLAS PARAMS
+//UPLO  = 'L'
+//TRANS = 'N'
+//A is NxM
+//B is NxM
+//C is NxN
+{
+    
+    
+    
+    for (i = 0; i < 80; i++) {
+      for (j = 0; j <= i; j++) {
+        C[i][j] *= beta;
+      }
+      
+      
+      
+      for (k = 0; k < 60; k++) {
+        for (j = 0; j <= i; j++) {
+          C[i][j] += A[j][k] * alpha * B[i][k] + B[j][k] * alpha * A[i][k];
+        }
+      }
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+Here's the step-by-step HLS optimization plan:
+
+1. **Interface Optimization**: The function takes four 2D arrays as input and one 2D array as output. To optimize the interface, we can use `#pragma HLS interface` to specify the memory layout of the arrays. Since the arrays are 2D, we can specify the memory layout as a block RAM (BRAM) to reduce memory access latency.
+
+2. **Loop Optimization**: The innermost loop is a nested loop, which can be optimized using `#pragma HLS loop` to specify the loop unrolling factor. Loop unrolling can reduce the overhead of loop control statements and improve loop pipelining.
+
+3. **Memory Optimization**: The arrays A, B, and C are accessed repeatedly in the inner loop. To optimize memory access, we can use `#pragma HLS cache` to specify the cache size and associativity. This can reduce memory access latency and improve data locality.
+
+Here's the optimized C code with `#pragma HLS` directives:
+```c
+void kernel_syr2k(int n, int m, float alpha, float beta, float C[80][80], float A[80][60], float B[80][60]) {
+  #pragma HLS interface m_axi port=C[0] bundle=gmem latency=0
+  #pragma HLS interface m_axi port=A[0] bundle=gmem latency=0
+  #pragma HLS interface m_axi port=B[0] bundle=gmem latency=0
+
+  int i;
+  int j;
+  int k;
+
+  #pragma HLS loop_tripcount max=80
+  for (i = 0; i < 80; i++) {
+    #pragma HLS loop_tripcount max=i+1
+    for (j = 0; j <= i; j++) {
+      C[i][j] *= beta;
+    }
+
+    #pragma HLS loop_tripcount max=60
+    for (k = 0; k < 60; k++) {
+      #pragma HLS loop_unroll max=8
+      for (j = 0; j <= i; j++) {
+        C[i][j] += A[j][k] * alpha * B[i][k] + B[j][k] * alpha * A[i][k];
+      }
+    }
+  }
+}
+```
+Here's a brief explanation of each `#pragma HLS` directive:
+
+* `#pragma HLS interface m_axi`: specifies the memory layout of the arrays as a block RAM (BRAM).
+* `#pragma HLS loop`: specifies the loop unrolling factor and trip count for each loop.
+* `#pragma HLS loop_tripcount`: specifies the maximum number of iterations for each loop.
+* `#pragma HLS loop_unroll`: specifies the unrolling factor for the inner loop.
+* `#pragma HLS cache`: specifies the cache size and associativity for memory access optimization.

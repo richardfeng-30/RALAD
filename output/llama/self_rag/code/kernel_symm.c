@@ -1,0 +1,36 @@
+void kernel_symm(int m, int n, float alpha, float beta, float C[60][80], float A[60][60], float B[60][80]) {
+  float temp2;
+  int i;
+  int j;
+  int k;
+  
+  #pragma HLS INTERFACE m_axi port=C offset=slave
+  #pragma HLS INTERFACE m_axi port=A offset=slave
+  #pragma HLS INTERFACE m_axi port=B offset=slave
+  
+  //BLAS PARAMS
+  //SIDE = 'L'
+  //UPLO = 'L'
+  // =>  Form  C := alpha*A*B + beta*C
+  // A is MxM
+  // B is MxN
+  // C is MxN
+  //note that due to Fortran array layout, the code below more closely resembles upper triangular case in BLAS
+  
+  {
+    #pragma HLS LOOP_TRIPCOUNT min = 60 max = 60
+    for (i = 0; i < 60; i++) {
+      
+      #pragma HLS LOOP_TRIPCOUNT min = 80 max = 80
+      for (j = 0; j < 80; j++) {
+        temp2 = ((float)0);
+        #pragma HLS LOOP_TRIPCOUNT min = i max = i
+        for (k = 0; k < i; k++) {
+          C[k][j] += alpha * B[i][j] * A[i][k];
+          temp2 += B[k][j] * A[i][k];
+        }
+        C[i][j] = beta * C[i][j] + alpha * B[i][j] * A[i][i] + alpha * temp2;
+      }
+    }
+  }
+}

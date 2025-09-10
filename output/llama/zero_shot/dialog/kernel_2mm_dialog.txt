@@ -1,0 +1,100 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+Optimize the following code by inserting pragma HLS lines.
+
+void kernel_2mm(int ni,int nj,int nk,int nl,float alpha,float beta,float tmp[40][50],float A[40][70],float B[70][50],float C[50][80],float D[40][80])
+{
+  int i;
+  int j;
+  int k;
+{
+    
+    
+    
+    for (i = 0; i < 40; i++) {
+      
+      
+      
+      for (j = 0; j < 50; j++) {
+        tmp[i][j] = 0.0;
+        
+        for (k = 0; k < 70; ++k) {
+          tmp[i][j] += alpha * A[i][k] * B[k][j];
+        }
+      }
+    }
+    
+    
+    
+    for (i = 0; i < 40; i++) {
+      
+      
+      
+      for (j = 0; j < 80; j++) {
+        D[i][j] *= beta;
+        
+        for (k = 0; k < 50; ++k) {
+          D[i][j] += tmp[i][k] * C[k][j];
+        }
+      }
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+Here is the optimized code with #pragma HLS directives:
+
+```c
+void kernel_2mm(int ni,int nj,int nk,int nl,float alpha,float beta,float tmp[40][50],float A[40][70],float B[70][50],float C[50][80],float D[40][80])
+{
+  #pragma HLS INTERFACE m_axi port=A offset=slave
+  #pragma HLS INTERFACE m_axi port=B offset=slave
+  #pragma HLS INTERFACE m_axi port=C offset=slave
+  #pragma HLS INTERFACE m_axi port=D offset=slave
+  #pragma HLS INTERFACE m_axi port=tmp offset=slave
+  
+  int i;
+  int j;
+  int k;
+  
+  #pragma HLS DATAFLOW
+  
+  #pragma HLS LOOP_TRIPCOUNT min=40 max=40
+  for (i = 0; i < 40; i++) {
+    #pragma HLS LOOP_TRIPCOUNT min=50 max=50
+    for (j = 0; j < 50; j++) {
+      tmp[i][j] = 0.0;
+      
+      #pragma HLS LOOP_TRIPCOUNT min=70 max=70
+      for (k = 0; k < 70; ++k) {
+        tmp[i][j] += alpha * A[i][k] * B[k][j];
+      }
+    }
+  }
+  
+  #pragma HLS LOOP_TRIPCOUNT min=40 max=40
+  for (i = 0; i < 40; i++) {
+    #pragma HLS LOOP_TRIPCOUNT min=80 max=80
+    for (j = 0; j < 80; j++) {
+      D[i][j] *= beta;
+      
+      #pragma HLS LOOP_TRIPCOUNT min=50 max=50
+      for (k = 0; k < 50; ++k) {
+        D[i][j] += tmp[i][k] * C[k][j];
+      }
+    }
+  }
+}
+```
+
+Note that I added the following HLS pragmas:
+
+* `#pragma HLS INTERFACE m_axi` for each memory interface
+* `#pragma HLS DATAFLOW` to indicate that the function is a dataflow-oriented kernel
+* `#pragma HLS LOOP_TRIPCOUNT` to specify the minimum and maximum trip counts for each loop
+* `#pragma HLS UNROLL` to specify the unroll factor for each loop (not shown in this example, but you can add it if needed)
+
+These pragmas can help the HLS compiler to optimize the code for performance and resource usage.

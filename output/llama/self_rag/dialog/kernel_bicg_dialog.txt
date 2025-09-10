@@ -1,0 +1,146 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+You are given some HLS pragma insertion examples.
+
+Example 1: 
+// Write out resulting row of C
+    for (int m = 0; m < M; ++m) {
+      #pragma HLS PIPELINE II=1
+      C[n * M + m] = acc[m];
+    }
+  }
+}
+
+
+
+Example 6
+This example plays with scaling up parallelism in a matrix multiplication example. We add two degrees of parallelism: horizontal vector parallelism, which consumes bandwidth, and pipeline parallelism, which consumes buffer space. In xilinx/Example6.cpp, rather than loading a single value of a before the inner M-loop, we load a higher (parametric) number of elements, allowing us to apply each of them to every value of B loaded. In xilinx/Example6_Vectorized.cpp, we additionally add vectorization, by replacing the primitive data types with vector types, and adjusting the loop bounds accordingly. The two files can be synthesized with make synthesize_example6 and make synthesize_example6_vectorized, respectively.
+
+Example 2: 
+// Stream row of B and apply it to the stored value of A
+        for (int tm = 0; tm < TM; ++tm) {
+          #pragma HLS PIPELINE II=1
+          const auto b_read = b_in.Pop();
+          const auto c_prev = (k > 0) ? c_buffer[tm] : Vec_t{static_cast<float>(0.)};
+          c_buffer[tm] = c_prev + a_buffer * b_read;
+          #pragma HLS DEPENDENCE variable=c_buffer false
+          // Forward to subsequent PE, if any
+          if (d < D - 1) {
+            b_out.Push(b_read);
+          }
+        }
+
+      } // End loop over K
+
+      // Write out result block
+      for (int tn = 0; tn < d + 1; ++tn) { // Different for each PE
+        for (int tm = 0; tm < TM; ++tm) {
+          #pragma HLS PIPELINE II=1
+          #pragma HLS LOOP_FLATTEN
+          Vec_t c_val{};
+          if (d > 0 && tn > 0) {
+            c_val = c_in.Pop();
+          } else {
+            c_val = c_buffer[tm];
+          }
+          c_out.Push(c_val);
+        }
+      }
+    }
+  }
+}
+
+Example 3: 
+// Burst read for matrix A
+// Auto-pipeline is going to apply pipeline to these loops
+readA:
+    for (int itr = 0, i = 0, j = 0; itr < dim * dim; itr++, j++) {
+#pragma HLS LOOP_TRIPCOUNT min = c_dim* c_dim max = c_dim * c_dim
+        if (j == dim) {
+            j = 0;
+            i++;
+        }
+        A[i * MAX_DIM + j] = in1[itr];
+    }
+
+// Burst read for matrix B
+readB:
+    for (int itr = 0, i = 0, j = 0; itr < dim * dim; itr++, j++) {
+#pragma HLS LOOP_TRIPCOUNT min = c_dim* c_dim max = c_dim * c_dim
+        if (j == dim) {
+            j = 0;
+            i++;
+        }
+        B[i * MAX_DIM + j] = in2[itr];
+    }
+
+Optimize the following code by inserting pragma HLS lines.
+//BiCG Sub Kernel of BiCGStab Linear Solver
+
+
+void kernel_bicg(int m,int n,float A[124][116],float s[116],float q[124],float p[116],float r[124])
+{
+  int i;
+  int j;
+{
+    
+    for (i = 0; i < 116; i++) {
+      s[i] = ((float )0);
+    }
+    
+    
+    
+    for (i = 0; i < 124; i++) {
+      q[i] = 0.0;
+      
+      for (j = 0; j < 116; j++) {
+        s[j] = s[j] + r[i] * A[i][j];
+        q[i] = q[i] + A[i][j] * p[j];
+      }
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+Here is the optimized code with HLS pragmas:
+```
+void kernel_bicg(int m, int n, float A[124][116], float s[116], float q[124], float p[116], float r[124]) {
+  #pragma HLS INTERFACE m_axi port=A
+  #pragma HLS INTERFACE m_axi port=s
+  #pragma HLS INTERFACE m_axi port=q
+  #pragma HLS INTERFACE m_axi port=p
+  #pragma HLS INTERFACE m_axi port=r
+
+  int i;
+  int j;
+
+  // Initialize s
+  #pragma HLS PIPELINE II=1
+  for (i = 0; i < 116; i++) {
+    s[i] = 0.0;
+  }
+
+  // Update s and q
+  #pragma HLS PIPELINE II=1
+  for (i = 0; i < 124; i++) {
+    q[i] = 0.0;
+    #pragma HLS LOOP_FLATTEN
+    for (j = 0; j < 116; j++) {
+      #pragma HLS DEPENDENCE variable=s false
+      s[j] = s[j] + r[i] * A[i][j];
+      q[i] = q[i] + A[i][j] * p[j];
+    }
+  }
+}
+```
+I added the following HLS pragmas:
+
+* `#pragma HLS INTERFACE m_axi` to specify the interface for each array
+* `#pragma HLS PIPELINE II=1` to pipeline the loops
+* `#pragma HLS LOOP_FLATTEN` to flatten the inner loop
+* `#pragma HLS DEPENDENCE variable=s false` to indicate that the dependence between elements of `s` is not a loop-carried dependence
+
+Note that you may need to adjust the pragmas based on the specific requirements of your hardware and the performance characteristics of your code.

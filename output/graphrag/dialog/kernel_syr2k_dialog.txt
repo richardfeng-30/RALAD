@@ -1,0 +1,91 @@
+To optimize the given kernel_syr2k function for High-Level Synthesis (HLS), we can apply several well-known pragma directives and code restructuring techniques to improve throughput and parallelism while controlling resource usage and compilation time.
+
+### Summary of Relevant HLS Optimization Strategies and Pragmas
+
+1. **Loop Pipelining (`#pragma HLS PIPELINE`)**  
+   Applying pipelining to loops reduces the initiation interval (II), allowing new iterations to start before previous ones finish, thus increasing throughput. It is especially effective on innermost loops with data dependencies minimized.
+
+2. **Loop Unrolling (`#pragma HLS UNROLL`)**  
+   Unrolling loops replicates hardware to execute multiple iterations in parallel. Partial unrolling can balance resource usage and performance.
+
+3. **Loop Flattening (`#pragma HLS LOOP_FLATTEN`)**  
+   Flattening nested loops into a single loop can improve pipeline efficiency by reducing loop overhead and enabling better scheduling.
+
+4. **Array Partitioning (`#pragma HLS ARRAY_PARTITION`)**  
+   Partitioning arrays into smaller blocks or completely partitioning them enables parallel access to multiple elements, reducing memory bottlenecks.
+
+5. **Dataflow Optimization**  
+   Using dataflow pragmas to enable concurrent execution of independent loops or functions can improve throughput.
+
+6. **Dependency Pragmas (`#pragma HLS DEPENDENCE`)**  
+   Declaring false dependencies can help the compiler pipeline loops more aggressively.
+
+### Applying These to kernel_syr2k
+
+- The outer loop `i` iterates over rows of C, and the inner loops update elements of C based on A and B.
+- The inner `j` loop has a triangular bound (`j <= i`), which complicates unrolling but can still be partially unrolled.
+- The `k` loop is a good candidate for pipelining since it accumulates over the K dimension.
+- Buffering or partitioning arrays A, B, and C can enable parallel access.
+- Flattening the nested loops over `j` and `k` may improve pipeline efficiency.
+
+### Final Optimized Code with Pragmas
+
+```c
+void kernel_syr2k(int n, int m, float alpha, float beta, float C[80][80], float A[80][60], float B[80][60]) {
+#pragma HLS INTERFACE m_axi port=C offset=slave bundle=gmem0
+#pragma HLS INTERFACE m_axi port=A offset=slave bundle=gmem1
+#pragma HLS INTERFACE m_axi port=B offset=slave bundle=gmem2
+#pragma HLS INTERFACE s_axilite port=n bundle=control
+#pragma HLS INTERFACE s_axilite port=m bundle=control
+#pragma HLS INTERFACE s_axilite port=alpha bundle=control
+#pragma HLS INTERFACE s_axilite port=beta bundle=control
+#pragma HLS INTERFACE s_axilite port=C bundle=control
+#pragma HLS INTERFACE s_axilite port=A bundle=control
+#pragma HLS INTERFACE s_axilite port=B bundle=control
+#pragma HLS INTERFACE s_axilite port=return bundle=control
+
+  // Partition arrays to enable parallel access
+#pragma HLS ARRAY_PARTITION variable=C complete dim=2
+#pragma HLS ARRAY_PARTITION variable=A complete dim=2
+#pragma HLS ARRAY_PARTITION variable=B complete dim=2
+
+  for (int i = 0; i < 80; i++) {
+#pragma HLS LOOP_TRIPCOUNT min=80 max=80
+    // Scale C by beta
+    for (int j = 0; j <= i; j++) {
+#pragma HLS PIPELINE II=1
+#pragma HLS LOOP_TRIPCOUNT min=80 max=80
+      C[i][j] *= beta;
+    }
+
+    // Accumulate rank-2k update
+    for (int k = 0; k < 60; k++) {
+#pragma HLS PIPELINE II=1
+#pragma HLS LOOP_TRIPCOUNT min=60 max=60
+      for (int j = 0; j <= i; j++) {
+#pragma HLS UNROLL factor=4
+#pragma HLS LOOP_TRIPCOUNT min=80 max=80
+        C[i][j] += A[j][k] * alpha * B[i][k] + B[j][k] * alpha * A[i][k];
+      }
+    }
+  }
+}
+```
+
+### Explanation of Inserted Pragmas
+
+- **Interface Pragmas:** Define AXI interfaces for arrays and control ports to enable efficient data transfer between host and FPGA.
+- **Array Partitioning:** Complete partitioning of the second dimension of arrays C, A, and B allows simultaneous access to multiple columns, reducing memory bottlenecks.
+- **Loop Tripcount:** Provides synthesis tool with iteration count hints to improve performance estimation.
+- **Loop Pipelining:** Applied to the scaling loop and the `k` loop to enable initiation interval of 1, maximizing throughput.
+- **Loop Unrolling:** Partial unrolling of the inner `j` loop inside the `k` loop to exploit parallelism while controlling resource usage. The factor can be tuned based on resource constraints.
+  
+### Additional Notes
+
+- The triangular loop bound (`j <= i`) limits full unrolling, but partial unrolling still improves parallelism.
+- The pipeline II=1 pragmas ensure that new iterations start every cycle, maximizing throughput.
+- Array partitioning is critical to avoid memory access conflicts and enable parallel loads/stores.
+- The pragma usage balances performance and resource utilization, aiming to keep resource usage under 80% and compilation time reasonable.
+- Further tuning of unroll factors and partitioning granularity can be done based on synthesis reports.
+
+This approach leverages common HLS optimization techniques and pragma usage patterns to improve the performance of the kernel_syr2k function while respecting resource and compilation time constraints [Data: Entities (357, 4337, 78); Relationships (97, 98, 96, 103, 104, 105, 106, 107)].

@@ -1,0 +1,141 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+You are given some HLS pragma insertion examples.
+
+Example 1: 
+// Calculate matrix multiplication using local data buffer based on input size,
+// and write results into local buffer for out
+loop_count:
+    for (int i = 0; i < rep_count; i++) {
+    arraypart1:
+        for (int row = 0; row < size; row++) {
+#pragma HLS LOOP_TRIPCOUNT min = c_dim max = c_dim
+        arraypart2:
+            for (int col = 0; col < size; col++) {
+#pragma HLS LOOP_TRIPCOUNT min = c_dim max = c_dim
+            arraypart3:
+                for (int j = 0; j < MAX_SIZE; j++) {
+#pragma HLS LOOP_TRIPCOUNT min = c_dim max = c_dim
+                    int result = (col == 0) ? 0 : temp_sum[j];
+                    result += A[row][col] * B[col][j];
+                    temp_sum[j] = result;
+                    if (col == size - 1) C[row][j] = result;
+                }
+            }
+        }
+    }
+
+Example 2: 
+// Write out resulting row of C
+    for (int m = 0; m < M; ++m) {
+      #pragma HLS PIPELINE II=1
+      C[n * M + m] = acc[m];
+    }
+  }
+}
+
+
+
+Example 6
+This example plays with scaling up parallelism in a matrix multiplication example. We add two degrees of parallelism: horizontal vector parallelism, which consumes bandwidth, and pipeline parallelism, which consumes buffer space. In xilinx/Example6.cpp, rather than loading a single value of a before the inner M-loop, we load a higher (parametric) number of elements, allowing us to apply each of them to every value of B loaded. In xilinx/Example6_Vectorized.cpp, we additionally add vectorization, by replacing the primitive data types with vector types, and adjusting the loop bounds accordingly. The two files can be synthesized with make synthesize_example6 and make synthesize_example6_vectorized, respectively.
+
+Example 3: 
+7.2 Complete Matrix Multiplication
+We start our optimization process with perhaps the most common method to compute a matrix
+multiplication – using three nested for loops. Figure 7.1 provides the code for such an implementation. The outer for loops, labeled rows and cols, iterate across the rows and columns of the output
+matrix AB. The innermost for loop computes a dot product of one row of A and one column of
+B. Each dot product is a completely independent set of computations that results in one element
+of AB. Conceptually, we are performing P matrix-vector multiplications, one for each column of
+B.
+In this case, we’ve applied a pipeline directive to the col loop with a target initiation interval of 1.
+The result is that the innermost for loop is fully unrolled, and we expect the resulting circuit include
+roughly M multiply-add operators and to have an interval of roughly N ∗ P cycles. As discussed
+
+Optimize the following code by inserting pragma HLS lines.
+//Symmetric Matrix Multiplication
+
+void kernel_symm(int m,int n,float alpha,float beta,float C[60][80],float A[60][60],float B[60][80])
+{
+  float temp2;
+  int i;
+  int j;
+  int k;
+  
+//BLAS PARAMS
+//SIDE = 'L'
+//UPLO = 'L'
+// =>  Form  C := alpha*A*B + beta*C
+// A is MxM
+// B is MxN
+// C is MxN
+//note that due to Fortran array layout, the code below more closely resembles upper triangular case in BLAS
+{
+    
+    
+    
+    for (i = 0; i < 60; i++) {
+      
+      
+      
+      for (j = 0; j < 80; j++) {
+        temp2 = ((float )0);
+        for (k = 0; k < i; k++) {
+          C[k][j] += alpha * B[i][j] * A[i][k];
+          temp2 += B[k][j] * A[i][k];
+        }
+        C[i][j] = beta * C[i][j] + alpha * B[i][j] * A[i][i] + alpha * temp2;
+      }
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+Here is the optimized code with HLS pragmas:
+```c
+void kernel_symm(int m, int n, float alpha, float beta, float C[60][80], float A[60][60], float B[60][80]) {
+  float temp2;
+  int i;
+  int j;
+  int k;
+  
+  #pragma HLS INTERFACE m_axi port=C offset=slave
+  #pragma HLS INTERFACE m_axi port=A offset=slave
+  #pragma HLS INTERFACE m_axi port=B offset=slave
+  
+  //BLAS PARAMS
+  //SIDE = 'L'
+  //UPLO = 'L'
+  // =>  Form  C := alpha*A*B + beta*C
+  // A is MxM
+  // B is MxN
+  // C is MxN
+  //note that due to Fortran array layout, the code below more closely resembles upper triangular case in BLAS
+  
+  {
+    #pragma HLS LOOP_TRIPCOUNT min = 60 max = 60
+    for (i = 0; i < 60; i++) {
+      
+      #pragma HLS LOOP_TRIPCOUNT min = 80 max = 80
+      for (j = 0; j < 80; j++) {
+        temp2 = ((float)0);
+        #pragma HLS LOOP_TRIPCOUNT min = i max = i
+        for (k = 0; k < i; k++) {
+          C[k][j] += alpha * B[i][j] * A[i][k];
+          temp2 += B[k][j] * A[i][k];
+        }
+        C[i][j] = beta * C[i][j] + alpha * B[i][j] * A[i][i] + alpha * temp2;
+      }
+    }
+  }
+}
+```
+I added the following pragmas:
+
+* `#pragma HLS INTERFACE m_axi` to specify the interfaces for the input and output arrays.
+* `#pragma HLS LOOP_TRIPCOUNT` to specify the minimum and maximum trip counts for each loop. This helps the HLS compiler optimize the loop iterations.
+* `#pragma HLS LOOP_TRIPCOUNT` is also added inside the innermost loop to specify the trip count for the inner loop.
+
+Note that you may need to adjust the pragmas based on the specific requirements of your design and the capabilities of your FPGA.

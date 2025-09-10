@@ -1,0 +1,104 @@
+To optimize the given kernel_gemver function for High-Level Synthesis (HLS) while keeping resource utilization under 80% and compilation time under 1800 seconds, we can apply several well-known HLS optimization strategies and pragmas.
+
+### Summary of Relevant Optimization Strategies and Pragmas
+
+1. **Loop Pipelining**: Applying `#pragma HLS pipeline` to loops can improve throughput by initiating new iterations before previous ones complete, reducing initiation interval (II). This is essential for nested loops with high iteration counts.
+
+2. **Loop Unrolling**: Partial or full unrolling of loops with `#pragma HLS unroll` can increase parallelism but at the cost of increased resource usage. To keep resource utilization under 80%, partial unrolling or selective unrolling is preferred.
+
+3. **Array Partitioning**: Using `#pragma HLS array_partition` on arrays can enable parallel access to multiple elements, reducing memory bottlenecks and improving performance.
+
+4. **Dataflow Optimization**: Applying `#pragma HLS dataflow` to enable concurrent execution of independent loops or functions can improve throughput without significantly increasing resource usage.
+
+5. **Resource Allocation Control**: Using `#pragma HLS allocation` to limit the number of hardware resources (e.g., multipliers) can help keep resource usage within limits.
+
+6. **Interface Pragmas**: Specifying interfaces with pragmas like `#pragma HLS INTERFACE` can optimize data transfer but is less relevant here since the focus is on kernel internals.
+
+7. **Code Restructuring**: Restructuring loops and computations to maximize parallelism and minimize dependencies.
+
+### Applying Pragmas to the Code
+
+Given the nested loops and array accesses, the main targets for optimization are the two nested loops updating `A` and the loops updating `x` and `w`. We will:
+
+- Pipeline the inner loops to improve throughput.
+- Partially unroll the inner loops where beneficial.
+- Partition arrays `A`, `u1`, `v1`, `u2`, `v2`, `x`, `y`, `z`, and `w` to allow parallel access.
+- Use dataflow to overlap the execution of independent loops.
+
+### Final Optimized Code with Pragmas
+
+```c
+void kernel_gemver(int n, float alpha, float beta, float A[120][120], float u1[120], float v1[120], float u2[120], float v2[120], float w[120], float x[120], float y[120], float z[120]) {
+#pragma HLS INTERFACE m_axi port=A offset=slave bundle=gmem
+#pragma HLS INTERFACE m_axi port=u1 offset=slave bundle=gmem
+#pragma HLS INTERFACE m_axi port=v1 offset=slave bundle=gmem
+#pragma HLS INTERFACE m_axi port=u2 offset=slave bundle=gmem
+#pragma HLS INTERFACE m_axi port=v2 offset=slave bundle=gmem
+#pragma HLS INTERFACE m_axi port=w offset=slave bundle=gmem
+#pragma HLS INTERFACE m_axi port=x offset=slave bundle=gmem
+#pragma HLS INTERFACE m_axi port=y offset=slave bundle=gmem
+#pragma HLS INTERFACE m_axi port=z offset=slave bundle=gmem
+#pragma HLS INTERFACE s_axilite port=n bundle=control
+#pragma HLS INTERFACE s_axilite port=alpha bundle=control
+#pragma HLS INTERFACE s_axilite port=beta bundle=control
+#pragma HLS INTERFACE s_axilite port=return bundle=control
+
+#pragma HLS array_partition variable=A complete dim=2
+#pragma HLS array_partition variable=u1 complete
+#pragma HLS array_partition variable=v1 complete
+#pragma HLS array_partition variable=u2 complete
+#pragma HLS array_partition variable=v2 complete
+#pragma HLS array_partition variable=w complete
+#pragma HLS array_partition variable=x complete
+#pragma HLS array_partition variable=y complete
+#pragma HLS array_partition variable=z complete
+
+#pragma HLS dataflow
+
+    int i, j;
+
+    // Update A matrix
+    for (i = 0; i < 120; i++) {
+#pragma HLS pipeline II=1
+        for (j = 0; j < 120; j++) {
+#pragma HLS unroll factor=4
+            A[i][j] = A[i][j] + u1[i] * v1[j] + u2[i] * v2[j];
+        }
+    }
+
+    // Update x vector
+    for (i = 0; i < 120; i++) {
+        float temp = 0;
+#pragma HLS pipeline II=1
+        for (j = 0; j < 120; j++) {
+#pragma HLS unroll factor=4
+            temp += beta * A[j][i] * y[j];
+        }
+        x[i] = x[i] + temp + z[i];
+    }
+
+    // Update w vector
+    for (i = 0; i < 120; i++) {
+        float temp = 0;
+#pragma HLS pipeline II=1
+        for (j = 0; j < 120; j++) {
+#pragma HLS unroll factor=4
+            temp += alpha * A[i][j] * x[j];
+        }
+        w[i] = w[i] + temp;
+    }
+}
+```
+
+### Explanation
+
+- **Interface Pragmas**: Define AXI interfaces for arrays and control signals to optimize data transfer.
+- **Array Partitioning**: Fully partition arrays along the dimension that is accessed in parallel to enable concurrent access and avoid memory bottlenecks.
+- **Dataflow**: Enables overlapping execution of the three main computation loops.
+- **Loop Pipelining**: Applied to inner loops with initiation interval (II) of 1 to maximize throughput.
+- **Loop Unrolling**: Partial unrolling with factor 4 balances parallelism and resource usage.
+- **Temporary Variables**: Used in the second and third loops to accumulate sums, enabling pipelining.
+
+This approach balances performance improvement with resource constraints and compilation time considerations by avoiding full unrolling and excessive resource allocation. Further tuning of unroll factors and partitioning can be done based on synthesis reports to meet exact resource and timing goals.
+
+This optimization strategy and pragma usage are supported by best practices in Vitis HLS optimization techniques and pragma directives [Data: OPTIMIZATION DIRECTIVES (213), PRAGMAS (357), HLS_PRAGMA (5019), OPTIMIZING THE HLS PROJECT (132), HLS OPTIMIZATION TECHNIQUES (4337)].

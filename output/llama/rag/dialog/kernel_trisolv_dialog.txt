@@ -1,0 +1,196 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+You are given some HLS pragma insertion examples.
+
+Example 1: 
+for (i = N − 1; i > 0; i−−) {
+shift reg[i] = shift reg[i − 1];
+}
+shift reg[0] = x;
+acc = 0;
+MAC:
+
+Example 2: 
+for (j = 0; j < SIZE; j++) {
+sum += V In[j] ∗ M[i][j];
+}
+V Out[i] = sum;
+}
+}
+Figure 4.11: Matrix-vector multiplication with a particular choice of array partitioning and pipelining.
+
+i
+Function Interval = 13
+
+V In[0]
+
+Loop Interval = 1
+
+V In[1]
+
+M[][0]
+
+V In[2]
+
+M[][1]
+
+V In[3]
+
+M[][2]
+
+V In[4]
+
+M[][3]
+
+V In[5]
+
+M[][4]
+
+V In[6]
+
+M[][5]
+
+V In[7]
+
+M[][6]
+
+Loop Latency = 6
+
+M[][7]
+
+Function Latency = 13
+
+V in[]
+
+V Out[]
+
+V out[i]
+
+Figure 4.12: Matrix-vector multiplication architecture with a particular choice of array partitioning
+and pipelining. The pipelining registers have been elided and the behavior is shown at right.
+
+89
+
+DISCRETE FOURIER TRANSFORM
+
+V In[2]
+
+M[][1]
+
+V In[3]
+
+M[][2]
+
+V In[4]
+
+M[][3]
+
+V In[5]
+
+M[][4]
+
+V In[6]
+
+M[][5]
+
+V In[7]
+
+M[][6]
+M[][7]
+
+j%3
+
+i,j%3
+V In[0-2]
+V In[3-5]
+V In[6-7]
+
+M[][0-2]
+M[][3-5]
+
+To Adders
+
+M[][0]
+
+To Adders
+
+V In[1]
+
+To Adders
+
+V In[0]
+
+To Adders
+
+i
+
+M[][6-7]
+
+Example 3: 
+if (i == 1) {
+shift reg[1] = shift reg[0];
+}
+shift reg[0] = x;
+Figure 2.5: Manually unrolling the TDL loop in the fir11 function.
+
+Optimize the following code by inserting pragma HLS lines.
+void kernel_trisolv(int n,float L[120][120],float x[120],float b[120])
+{
+  int i;
+  int j;
+{
+    
+    
+    
+    for (i = 0; i < 120; i++) {
+      x[i] = b[i];
+      for (j = 0; j < i; j++) {
+        x[i] -= L[i][j] * x[j];
+      }
+      x[i] = x[i] / L[i][i];
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+Here is the optimized code with HLS pragmas:
+```
+void kernel_trisolv(int n, float L[120][120], float x[120], float b[120]) {
+  #pragma HLS INTERFACE m_axi port=L offset=slave bundle=gmem
+  #pragma HLS INTERFACE m_axi port=x offset=slave bundle=gmem
+  #pragma HLS INTERFACE m_axi port=b offset=slave bundle=gmem
+
+  int i;
+  int j;
+
+  #pragma HLS DATAFLOW
+  #pragma HLS PIPELINE II=1
+
+  for (i = 0; i < 120; i++) {
+    #pragma HLS LOOP_TRIPCOUNT min=1 max=120 avg=60
+    #pragma HLS UNROLL factor=1
+
+    x[i] = b[i];
+    for (j = 0; j < i; j++) {
+      #pragma HLS LOOP_TRIPCOUNT min=1 max=119 avg=59.5
+      #pragma HLS UNROLL factor=4
+
+      x[i] -= L[i][j] * x[j];
+    }
+    x[i] = x[i] / L[i][i];
+  }
+}
+```
+Here's a brief explanation of the pragmas used:
+
+* `#pragma HLS INTERFACE m_axi`: specifies the interface for the AXI memory-mapped interface.
+* `#pragma HLS DATAFLOW`: specifies that the function is a dataflow-oriented function, which allows for pipelining and parallelization.
+* `#pragma HLS PIPELINE II=1`: specifies the pipeline interval (II) as 1, which means that each iteration of the loop will be executed in a separate pipeline stage.
+* `#pragma HLS LOOP_TRIPCOUNT min=1 max=120 avg=60`: specifies the trip count (number of iterations) for the outer loop, as well as the minimum, maximum, and average values.
+* `#pragma HLS UNROLL factor=1`: specifies the unrolling factor for the outer loop as 1, which means that the loop will not be unrolled.
+* `#pragma HLS UNROLL factor=4`: specifies the unrolling factor for the inner loop as 4, which means that the loop will be unrolled by a factor of 4.
+
+Note that the exact optimization will depend on the specific hardware and software platform being used. These pragmas are just suggestions and may need to be adjusted based on experimentation and profiling.

@@ -1,0 +1,153 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+You are given some HLS pragma insertion examples.
+
+Example 1: 
+n−1
+Y
+
+Ki =
+
+i=0
+
+n−1
+Y
+i=0
+
+√
+
+1
+1 + 2−2i
+
+(3.24)
+
+and
+K = lim K(n) ≈ 0.6072529350088812561694
+n→∞
+
+(3.25)
+
+The scaling factors for different iterations can be calculated in advance and stored in a table. If we
+always perform a fixed number of rotations, this is simply one constant. This correction could also
+be made in advance by scaling v0 appropriately before performing the rotations. Sometimes it is
+ok to ignore this scaling, which results in a processing gain
+n−1
+
+A=
+
+Yp
+1
+= lim
+1 + 2−2i ≈ 1.64676025812107
+n→∞
+K
+
+(3.26)
+
+i=0
+
+Example 2: 
+void matrixmul(int A[N][M], int B[M][P], int AB[N][P]) {
+#pragma HLS ARRAY RESHAPE variable=A complete dim=2
+#pragma HLS ARRAY RESHAPE variable=B complete dim=1
+/∗ for each row and column of AB ∗/
+row: for(int i = 0; i < N; ++i) {
+col: for(int j = 0; j < P; ++j) {
+#pragma HLS PIPELINE II=1
+/∗ compute (AB)i,j ∗/
+
+Example 3: 
+N
+−1
+X
+
+g[n] · e
+
+−j2πkn
+N
+
+Optimize the following code by inserting pragma HLS lines.
+void kernel_symm(int m,int n,float alpha,float beta,float C[60][80],float A[60][60],float B[60][80])
+{
+  float temp2;
+  int i;
+  int j;
+  int k;
+  
+//BLAS PARAMS
+//SIDE = 'L'
+//UPLO = 'L'
+// =>  Form  C := alpha*A*B + beta*C
+// A is MxM
+// B is MxN
+// C is MxN
+//note that due to Fortran array layout, the code below more closely resembles upper triangular case in BLAS
+{
+    
+    
+    
+    for (i = 0; i < 60; i++) {
+      
+      
+      
+      for (j = 0; j < 80; j++) {
+        temp2 = ((float )0);
+        for (k = 0; k < i; k++) {
+          C[k][j] += alpha * B[i][j] * A[i][k];
+          temp2 += B[k][j] * A[i][k];
+        }
+        C[i][j] = beta * C[i][j] + alpha * B[i][j] * A[i][i] + alpha * temp2;
+      }
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+Here is the optimized C code with HLS pragmas:
+
+```c
+void kernel_symm(int m, int n, float alpha, float beta, float C[60][80], float A[60][60], float B[60][80]) {
+  #pragma HLS INTERFACE m_axi port=C offset=slave bundle=gmem
+  #pragma HLS INTERFACE m_axi port=A offset=slave bundle=gmem
+  #pragma HLS INTERFACE m_axi port=B offset=slave bundle=gmem
+  #pragma HLS INTERFACE s_axilite port=m
+  #pragma HLS INTERFACE s_axilite port=n
+  #pragma HLS INTERFACE s_axilite port=alpha
+  #pragma HLS INTERFACE s_axilite port=beta
+  #pragma HLS INTERFACE s_axilite port=return
+
+  #pragma HLS ARRAY_PARTITION variable=C cyclic factor=4
+  #pragma HLS ARRAY_PARTITION variable=A cyclic factor=4
+  #pragma HLS ARRAY_PARTITION variable=B cyclic factor=4
+
+  float temp2;
+  int i;
+  int j;
+  int k;
+
+  for (i = 0; i < 60; i++) {
+    #pragma HLS LOOP_TRIPCOUNT avg=30 max=60
+    for (j = 0; j < 80; j++) {
+      temp2 = ((float)0);
+      for (k = 0; k <= i; k++) {
+        #pragma HLS UNROLL
+        C[k][j] += alpha * B[i][j] * A[i][k];
+        temp2 += B[k][j] * A[i][k];
+      }
+      C[i][j] = beta * C[i][j] + alpha * B[i][j] * A[i][i] + alpha * temp2;
+    }
+  }
+}
+```
+
+In this optimized code, I have added the following HLS pragmas:
+
+*   `#pragma HLS INTERFACE` pragmas to specify the memory interface for the input and output arrays.
+*   `#pragma HLS ARRAY_PARTITION` pragmas to partition the arrays into smaller chunks to improve memory access.
+*   `#pragma HLS LOOP_TRIPCOUNT` pragmas to specify the average and maximum trip count for the loops.
+*   `#pragma HLS UNROLL` pragmas to unroll the inner loop to improve pipeline efficiency.
+
+These pragmas can be adjusted based on the specific requirements of your hardware and the characteristics of your input data.

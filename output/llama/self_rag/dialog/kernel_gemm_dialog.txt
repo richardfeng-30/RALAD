@@ -1,0 +1,139 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+You are given some HLS pragma insertion examples.
+
+Example 1: 
+void kernel(int *bank0, int *bank1, ...)
+{
+#pragma HLS alias ports=bank0,bank1 distance=bank_size
+
+The ALIAS pragma can be specified using one of the following forms:
+• Constant distance:
+#pragma HLS alias ports=arr0,arr1,arr2,arr3 distance=1024
+
+• Variable distance:
+#pragma HLS alias ports=arr0,arr1,arr2,arr3 offset=0,512,1024,2048
+
+Constraints:
+• The depths of all the ports in the interface pragma must be the same
+• All ports must be assigned to different bundles, bound to different HBM controllers
+• The number of ports specified in the second form must be the same as the number of offsets
+specified, one offset per port. #pragma HLS interface offset=off is not supported
+
+Section II: HLS Programmers Guide
+Chapter 8: Interfaces of the HLS Design
+
+• Each port can only be used in one ALIAS pragma
+
+Example 2: 
+void matrixmul(int A[N][M], int B[M][P], int AB[N][P]) {
+#pragma HLS ARRAY RESHAPE variable=A complete dim=2
+#pragma HLS ARRAY RESHAPE variable=B complete dim=1
+/∗ for each row and column of AB ∗/
+row: for(int i = 0; i < N; ++i) {
+col: for(int j = 0; j < P; ++j) {
+#pragma HLS PIPELINE II=1
+/∗ compute (AB)i,j ∗/
+
+Example 3: 
+N
+−1
+X
+
+g[n] · e
+
+−j2πkn
+N
+
+Optimize the following code by inserting pragma HLS lines.
+
+void kernel_gemm(int ni,int nj,int nk,float alpha,float beta,float C[60][70],float A[60][80],float B[80][70])
+{
+  int i;
+  int j;
+  int k;
+//BLAS PARAMS
+//TRANSA = 'N'
+//TRANSB = 'N'
+// => Form C := alpha*A*B + beta*C,
+//A is NIxNK
+//B is NKxNJ
+//C is NIxNJ
+{
+    
+    
+    
+    for (i = 0; i < 60; i++) {
+      
+      for (j = 0; j < 70; j++) {
+        C[i][j] *= beta;
+      }
+      
+      
+      
+      for (k = 0; k < 80; k++) {
+        
+        for (j = 0; j < 70; j++) {
+          C[i][j] += alpha * A[i][k] * B[k][j];
+        }
+      }
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+Here is the optimized C code with HLS pragmas:
+```
+void kernel_gemm(int ni, int nj, int nk, float alpha, float beta, float C[60][70], float A[60][80], float B[80][70]) {
+  #pragma HLS INTERFACE m_axi port=C offset=slave bundle=gmem
+  #pragma HLS INTERFACE m_axi port=A offset=slave bundle=gmem
+  #pragma HLS INTERFACE m_axi port=B offset=slave bundle=gmem
+
+  #pragma HLS ARRAY RESHAPE variable=C complete dim=2
+  #pragma HLS ARRAY RESHAPE variable=A complete dim=2
+  #pragma HLS ARRAY RESHAPE variable=B complete dim=2
+
+  int i;
+  int j;
+  int k;
+
+  //BLAS PARAMS
+  //TRANSA = 'N'
+  //TRANSB = 'N'
+  // => Form C := alpha*A*B + beta*C,
+  //A is NIxNK
+  //B is NKxNJ
+  //C is NIxNJ
+
+  for (i = 0; i < 60; i++) {
+    #pragma HLS LOOP_TRIPCOUNT min=1 max=60 avg=30
+    for (j = 0; j < 70; j++) {
+      #pragma HLS PIPELINE II=1
+      C[i][j] *= beta;
+    }
+
+    for (k = 0; k < 80; k++) {
+      #pragma HLS LOOP_TRIPCOUNT min=1 max=80 avg=40
+      for (j = 0; j < 70; j++) {
+        #pragma HLS PIPELINE II=1
+        C[i][j] += alpha * A[i][k] * B[k][j];
+      }
+    }
+  }
+}
+```
+I added the following HLS pragmas:
+
+* `#pragma HLS INTERFACE m_axi` to specify the memory interface for each array.
+* `#pragma HLS ARRAY RESHAPE` to reshape the arrays to optimize memory access.
+* `#pragma HLS LOOP_TRIPCOUNT` to specify the minimum, maximum, and average trip count for each loop.
+* `#pragma HLS PIPELINE` to enable pipelining for each inner loop.
+
+Note that the `#pragma HLS ARRAY RESHAPE` pragmas are used to reshape the arrays to optimize memory access. This can help improve performance by reducing memory bank conflicts and improving data locality.
+
+Also, the `#pragma HLS LOOP_TRIPCOUNT` pragmas are used to specify the trip count for each loop. This can help the HLS compiler generate more efficient code by taking into account the expected number of iterations for each loop.
+
+Finally, the `#pragma HLS PIPELINE` pragmas are used to enable pipelining for each inner loop. This can help improve performance by allowing the compiler to generate more efficient code that can execute multiple iterations of the loop in parallel.

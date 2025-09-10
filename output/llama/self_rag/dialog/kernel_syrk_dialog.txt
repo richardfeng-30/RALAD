@@ -1,0 +1,125 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+You are given some HLS pragma insertion examples.
+
+Example 1: 
+N
+−1
+X
+
+g[n] · e
+
+−j2πkn
+N
+
+Example 2: 
+// Stream row of B and apply it to the stored value of A
+        for (int tm = 0; tm < TM; ++tm) {
+          #pragma HLS PIPELINE II=1
+          const auto b_read = b_in.Pop();
+          const auto c_prev = (k > 0) ? c_buffer[tm] : Vec_t{static_cast<float>(0.)};
+          c_buffer[tm] = c_prev + a_buffer * b_read;
+          #pragma HLS DEPENDENCE variable=c_buffer false
+          // Forward to subsequent PE, if any
+          if (d < D - 1) {
+            b_out.Push(b_read);
+          }
+        }
+
+      } // End loop over K
+
+      // Write out result block
+      for (int tn = 0; tn < d + 1; ++tn) { // Different for each PE
+        for (int tm = 0; tm < TM; ++tm) {
+          #pragma HLS PIPELINE II=1
+          #pragma HLS LOOP_FLATTEN
+          Vec_t c_val{};
+          if (d > 0 && tn > 0) {
+            c_val = c_in.Pop();
+          } else {
+            c_val = c_buffer[tm];
+          }
+          c_out.Push(c_val);
+        }
+      }
+    }
+  }
+}
+
+Optimize the following code by inserting pragma HLS lines.
+//Symmetric Rank-k Operations
+
+void kernel_syrk(int n,int m,float alpha,float beta,float C[80][80],float A[80][60])
+{
+  int i;
+  int j;
+  int k;
+//BLAS PARAMS
+//TRANS = 'N'
+//UPLO  = 'L'
+// =>  Form  C := alpha*A*A**T + beta*C.
+//A is NxM
+//C is NxN
+{
+    
+    
+    
+    for (i = 0; i < 80; i++) {
+      for (j = 0; j <= i; j++) {
+        C[i][j] *= beta;
+      }
+      
+      
+      
+      for (k = 0; k < 60; k++) {
+        for (j = 0; j <= i; j++) {
+          C[i][j] += alpha * A[i][k] * A[j][k];
+        }
+      }
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+Here is the optimized code with HLS pragmas:
+
+```c
+void kernel_syrk(int n, int m, float alpha, float beta, float C[80][80], float A[80][60])
+{
+  #pragma HLS INTERFACE m_axi port=C offset=slave bundle=gmem
+  #pragma HLS INTERFACE m_axi port=A offset=slave bundle=gmem
+  
+  int i;
+  int j;
+  int k;
+  
+  for (i = 0; i < 80; i++) {
+    #pragma HLS LOOP_FLATTEN
+    for (j = 0; j <= i; j++) {
+      #pragma HLS PIPELINE II=1
+      C[i][j] *= beta;
+    }
+    
+    for (k = 0; k < 60; k++) {
+      #pragma HLS LOOP_FLATTEN
+      for (j = 0; j <= i; j++) {
+        #pragma HLS PIPELINE II=1
+        C[i][j] += alpha * A[i][k] * A[j][k];
+      }
+    }
+  }
+}
+```
+
+Explanation of the HLS pragmas used:
+
+- `#pragma HLS INTERFACE m_axi port=<variable> offset=<offset> bundle=<bundle>`: This directive is used to specify the interface of the kernel. In this case, we are specifying the interfaces for the input arrays `C` and `A`.
+
+- `#pragma HLS LOOP_FLATTEN`: This directive is used to flatten a loop. In this case, we are flattening the outer loops to improve the performance of the kernel.
+
+- `#pragma HLS PIPELINE II=<iteration>`: This directive is used to specify the pipeline depth of a loop. In this case, we are specifying a pipeline depth of 1 for the inner loops to improve the performance of the kernel.
+
+Note: The above code is optimized for a specific hardware platform and may not be optimal for other platforms. The optimal configuration may vary depending on the specific hardware and software used.

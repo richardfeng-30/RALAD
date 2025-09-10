@@ -1,0 +1,57 @@
+To optimize the given code, we will use HLS pragmas to improve the performance. We will focus on the following aspects:
+
+1.  Loop Pipelining: We will pipeline the inner loop to improve the throughput.
+2.  Loop Unrolling: We will unroll the inner loop to reduce the number of iterations.
+3.  Memory Access: We will use the `#pragma HLS pipeline` directive to optimize memory access.
+4.  Data Dependencies: We will use the `#pragma HLS dataflow` directive to specify the data dependencies.
+
+Here is the optimized code with HLS pragmas:
+
+```c
+void kernel_gesummv(int n, float alpha, float beta, float A[90][90], float B[90][90], float tmp[90], float x[90], float y[90]) {
+  int i;
+  int j;
+  #pragma HLS interface m_axi port=A[0] dim=2
+  #pragma HLS interface m_axi port=B[0] dim=2
+  #pragma HLS interface m_axi port=tmp[0] dim=1
+  #pragma HLS interface m_axi port=x[0] dim=1
+  #pragma HLS interface m_axi port=y[0] dim=1
+
+  for (i = 0; i < 90; i += 4) {
+    #pragma HLS loop_tripcount min=1 max=90
+    #pragma HLS pipeline II=4
+    for (j = 0; j < 90; j += 4) {
+      #pragma HLS unroll factor=4
+      float sum1 = 0.0;
+      float sum2 = 0.0;
+      for (int k = 0; k < 4; k++) {
+        sum1 += A[i + k][j] * x[j];
+        sum2 += B[i + k][j] * x[j];
+      }
+      tmp[i] = sum1;
+      y[i] = sum2;
+    }
+    for (j = 0; j < 90; j++) {
+      tmp[i] = alpha * tmp[i] + beta * y[i];
+    }
+  }
+  for (i = 90; i < 90; i++) {
+    tmp[i] = 0.0;
+    y[i] = 0.0;
+    for (j = 0; j < 90; j++) {
+      tmp[i] = A[i][j] * x[j] + tmp[i];
+      y[i] = B[i][j] * x[j] + y[i];
+    }
+    y[i] = alpha * tmp[i] + beta * y[i];
+  }
+}
+```
+
+In this code, we have used the following HLS pragmas:
+
+*   `#pragma HLS interface m_axi`: This directive is used to specify the interfaces for the AXI4 memory-mapped slave port.
+*   `#pragma HLS loop_tripcount`: This directive is used to specify the minimum and maximum number of iterations for the loop.
+*   `#pragma HLS pipeline`: This directive is used to specify the pipeline depth for the loop.
+*   `#pragma HLS unroll`: This directive is used to specify the unrolling factor for the loop.
+
+These pragmas will help to improve the performance of the code by reducing the number of iterations, improving memory access, and optimizing data dependencies.

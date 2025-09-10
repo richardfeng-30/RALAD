@@ -156,7 +156,7 @@ search_engine = LocalSearch(
 )
 
 async def main():
-    output_dir = Path("output/llama/graphrag")
+    output_dir = Path("output/graphrag")
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     Path(f"{output_dir}/code").mkdir(parents=True, exist_ok=True)
     Path(f"{output_dir}/dialog").mkdir(parents=True, exist_ok=True)

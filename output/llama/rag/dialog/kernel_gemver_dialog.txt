@@ -1,0 +1,131 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+You are given some HLS pragma insertion examples.
+
+Example 1: 
+for (i = N − 1; i > 0; i−−) {
+shift reg[i] = shift reg[i − 1];
+}
+shift reg[0] = x;
+acc = 0;
+MAC:
+
+Example 2: 
+void matrix vector(BaseType M[SIZE][SIZE], BaseType V In[SIZE], BaseType V Out[SIZE]) {
+BaseType i, j;
+data loop:
+for (i = 0; i < SIZE; i++) {
+BaseType sum = 0;
+dot product loop:
+
+Example 3: 
+void matrix vector(BaseType M[SIZE][SIZE], BaseType V In[SIZE], BaseType V Out[SIZE]) {
+BaseType i, j;
+data loop:
+
+Optimize the following code by inserting pragma HLS lines.
+
+void kernel_gemver(int n,float alpha,float beta,float A[120][120],float u1[120],float v1[120],float u2[120],float v2[120],float w[120],float x[120],float y[120],float z[120])
+{
+  int i;
+  int j;
+{
+    
+    
+    
+    for (i = 0; i < 120; i++) {
+      
+      for (j = 0; j < 120; j++) {
+        A[i][j] = A[i][j] + u1[i] * v1[j] + u2[i] * v2[j];
+      }
+    }
+    
+    
+    
+    for (i = 0; i < 120; i++) {
+      
+      for (j = 0; j < 120; j++) {
+        x[i] = x[i] + beta * A[j][i] * y[j];
+      }
+    }
+    
+    for (i = 0; i < 120; i++) {
+      x[i] = x[i] + z[i];
+    }
+    
+    
+    
+    for (i = 0; i < 120; i++) {
+      
+      for (j = 0; j < 120; j++) {
+        w[i] = w[i] + alpha * A[i][j] * x[j];
+      }
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+Here is the optimized code with HLS pragmas:
+
+```c
+void kernel_gemver(int n, float alpha, float beta, float A[120][120], float u1[120], float v1[120], float u2[120], float v2[120], float w[120], float x[120], float y[120], float z[120]) {
+  #pragma HLS INTERFACE m_axi port=A[0] depth=120
+  #pragma HLS INTERFACE m_axi port=u1[0] depth=120
+  #pragma HLS INTERFACE m_axi port=v1[0] depth=120
+  #pragma HLS INTERFACE m_axi port=u2[0] depth=120
+  #pragma HLS INTERFACE m_axi port=v2[0] depth=120
+  #pragma HLS INTERFACE m_axi port=w[0] depth=120
+  #pragma HLS INTERFACE m_axi port=x[0] depth=120
+  #pragma HLS INTERFACE m_axi port=y[0] depth=120
+  #pragma HLS INTERFACE m_axi port=z[0] depth=120
+
+  #pragma HLS DATAFLOW
+
+  int i;
+  int j;
+
+  // Compute A
+  #pragma HLS LOOP_FLATTEN
+  for (i = 0; i < 120; i++) {
+    #pragma HLS LOOP_FLATTEN
+    for (j = 0; j < 120; j++) {
+      A[i][j] = A[i][j] + u1[i] * v1[j] + u2[i] * v2[j];
+    }
+  }
+
+  // Compute x
+  #pragma HLS LOOP_FLATTEN
+  for (i = 0; i < 120; i++) {
+    #pragma HLS LOOP_FLATTEN
+    for (j = 0; j < 120; j++) {
+      x[i] = x[i] + beta * A[j][i] * y[j];
+    }
+  }
+
+  // Add z to x
+  #pragma HLS LOOP_FLATTEN
+  for (i = 0; i < 120; i++) {
+    x[i] = x[i] + z[i];
+  }
+
+  // Compute w
+  #pragma HLS LOOP_FLATTEN
+  for (i = 0; i < 120; i++) {
+    #pragma HLS LOOP_FLATTEN
+    for (j = 0; j < 120; j++) {
+      w[i] = w[i] + alpha * A[i][j] * x[j];
+    }
+  }
+}
+```
+
+In this code, I have added the following HLS pragmas:
+
+1. `#pragma HLS INTERFACE m_axi` to specify the memory interfaces for the arrays.
+2. `#pragma HLS DATAFLOW` to indicate that the function is a dataflow program.
+3. `#pragma HLS LOOP_FLATTEN` to flatten the loops and improve the pipelining of the code.
+
+These pragmas can help the HLS compiler to generate more efficient and pipelined code for the kernel_gemver function.

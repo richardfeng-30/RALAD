@@ -1,0 +1,146 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+You are given some HLS pragma insertion examples.
+
+Example 1: 
+// Calculate matrix multiplication using local data buffer based on input size,
+// and write results into local buffer for out
+loop_count:
+    for (int i = 0; i < rep_count; i++) {
+    arraypart1:
+        for (int row = 0; row < size; row++) {
+#pragma HLS LOOP_TRIPCOUNT min = c_dim max = c_dim
+        arraypart2:
+            for (int col = 0; col < size; col++) {
+#pragma HLS LOOP_TRIPCOUNT min = c_dim max = c_dim
+            arraypart3:
+                for (int j = 0; j < MAX_SIZE; j++) {
+#pragma HLS LOOP_TRIPCOUNT min = c_dim max = c_dim
+                    int result = (col == 0) ? 0 : temp_sum[j];
+                    result += A[row][col] * B[col][j];
+                    temp_sum[j] = result;
+                    if (col == size - 1) C[row][j] = result;
+                }
+            }
+        }
+    }
+
+Example 2: 
+void matrix vector(BaseType M[SIZE][SIZE], BaseType V In[SIZE], BaseType V Out[SIZE]) {
+BaseType i, j;
+data loop:
+for (i = 0; i < SIZE; i++) {
+BaseType sum = 0;
+dot product loop:
+
+Example 3: 
+for (j = 0; j < SIZE; j++) {
+sum += V In[j] ∗ M[i][j];
+}
+V Out[i] = sum;
+}
+}
+Figure 4.4: Simple code implementing a matrix-vector multiplication.
+
+Optimize the following code by inserting pragma HLS lines.
+//Vector Multiplication and Matrix Addition
+
+
+void kernel_gemver(int n,float alpha,float beta,float A[120][120],float u1[120],float v1[120],float u2[120],float v2[120],float w[120],float x[120],float y[120],float z[120])
+{
+  int i;
+  int j;
+{
+    
+    
+    
+    for (i = 0; i < 120; i++) {
+      
+      for (j = 0; j < 120; j++) {
+        A[i][j] = A[i][j] + u1[i] * v1[j] + u2[i] * v2[j];
+      }
+    }
+    
+    
+    
+    for (i = 0; i < 120; i++) {
+      
+      for (j = 0; j < 120; j++) {
+        x[i] = x[i] + beta * A[j][i] * y[j];
+      }
+    }
+    
+    for (i = 0; i < 120; i++) {
+      x[i] = x[i] + z[i];
+    }
+    
+    
+    
+    for (i = 0; i < 120; i++) {
+      
+      for (j = 0; j < 120; j++) {
+        w[i] = w[i] + alpha * A[i][j] * x[j];
+      }
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+Here is the optimized code with HLS pragmas:
+
+```c
+void kernel_gemver(int n, float alpha, float beta, float A[120][120], float u1[120], float v1[120], float u2[120], float v2[120], float w[120], float x[120], float y[120], float z[120]) {
+  #pragma HLS INTERFACE m_axi port=A offset=slave
+  #pragma HLS INTERFACE m_axi port=u1 offset=slave
+  #pragma HLS INTERFACE m_axi port=v1 offset=slave
+  #pragma HLS INTERFACE m_axi port=u2 offset=slave
+  #pragma HLS INTERFACE m_axi port=v2 offset=slave
+  #pragma HLS INTERFACE m_axi port=w offset=slave
+  #pragma HLS INTERFACE m_axi port=x offset=slave
+  #pragma HLS INTERFACE m_axi port=y offset=slave
+  #pragma HLS INTERFACE m_axi port=z offset=slave
+  #pragma HLS INTERFACE s_axli offset=slave bundle=AXILITE
+
+  int i;
+  int j;
+
+  // Vector multiplication and matrix addition
+  #pragma HLS DATAFLOW
+  #pragma HLS LOOP_TRIPCOUNT min = 120 max = 120
+  for (i = 0; i < 120; i++) {
+    for (j = 0; j < 120; j++) {
+      A[i][j] = A[i][j] + u1[i] * v1[j] + u2[i] * v2[j];
+    }
+  }
+
+  #pragma HLS LOOP_TRIPCOUNT min = 120 max = 120
+  for (i = 0; i < 120; i++) {
+    for (j = 0; j < 120; j++) {
+      x[i] = x[i] + beta * A[j][i] * y[j];
+    }
+  }
+
+  #pragma HLS LOOP_TRIPCOUNT min = 120 max = 120
+  for (i = 0; i < 120; i++) {
+    x[i] = x[i] + z[i];
+  }
+
+  #pragma HLS LOOP_TRIPCOUNT min = 120 max = 120
+  for (i = 0; i < 120; i++) {
+    for (j = 0; j < 120; j++) {
+      w[i] = w[i] + alpha * A[i][j] * x[j];
+    }
+  }
+}
+```
+
+In this optimized code, I have added the following HLS pragmas:
+
+*   `#pragma HLS INTERFACE m_axi`: This pragma is used to specify the memory interface for the function.
+*   `#pragma HLS LOOP_TRIPCOUNT`: This pragma is used to specify the minimum and maximum trip count for a loop.
+*   `#pragma HLS DATAFLOW`: This pragma is used to specify that the function is a dataflow function, which means that it can be executed in parallel.
+
+These pragmas can help the HLS compiler to optimize the code for better performance and resource utilization.

@@ -1,0 +1,101 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+Optimize the following code by inserting pragma HLS lines.
+
+void kernel_durbin(int n,float r[120],float y[120])
+{
+  float z[120];
+  float alpha;
+  float beta;
+  float sum;
+  int i;
+  int k;
+{
+    y[0] = -r[0];
+    beta = 1.0;
+    alpha = -r[0];
+    
+    
+    
+    for (k = 1; k < 120; k++) {
+      beta = (((float )1) - alpha * alpha) * beta;
+      sum = 0.0;
+      for (i = 0; i < k; i++) {
+        sum += r[k - i - 1] * y[i];
+      }
+      alpha = -(r[k] + sum) / beta;
+      for (i = 0; i < k; i++) {
+        z[i] = y[i] + alpha * y[k - i - 1];
+      }
+      for (i = 0; i < k; i++) {
+        y[i] = z[i];
+      }
+      y[k] = alpha;
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+Here is the optimized code with HLS pragmas:
+
+```c
+void kernel_durbin(int n, float r[120], float y[120])
+{
+    #pragma HLS INTERFACE m_axi port=r offset=slave bundle=gmem
+    #pragma HLS INTERFACE m_axi port=y offset=slave bundle=gmem
+    #pragma HLS INTERFACE s_axli offset=slave bundle=gmem
+    #pragma HLS INTERFACE s_axlo offset=slave bundle=gmem
+
+    #pragma HLS DATAFLOW
+
+    float z[120];
+    float alpha;
+    float beta;
+    float sum;
+    int i;
+    int k;
+
+    #pragma HLS DATA_PACK variable=r
+    #pragma HLS DATA_PACK variable=y
+    #pragma HLS DATA_PACK variable=z
+
+    {
+        y[0] = -r[0];
+        beta = 1.0;
+        alpha = -r[0];
+
+        #pragma HLS LOOP_TRIPCOUNT min=119 max=119
+        for (k = 1; k < 120; k++) {
+            #pragma HLS LOOP_TRIPCOUNT min=118 max=118
+            beta = (((float )1) - alpha * alpha) * beta;
+            sum = 0.0;
+            #pragma HLS LOOP_TRIPCOUNT min=118 max=118
+            for (i = 0; i < k; i++) {
+                sum += r[k - i - 1] * y[i];
+            }
+            alpha = -(r[k] + sum) / beta;
+            #pragma HLS LOOP_TRIPCOUNT min=118 max=118
+            for (i = 0; i < k; i++) {
+                z[i] = y[i] + alpha * y[k - i - 1];
+            }
+            #pragma HLS LOOP_TRIPCOUNT min=118 max=118
+            for (i = 0; i < k; i++) {
+                y[i] = z[i];
+            }
+            y[k] = alpha;
+        }
+    }
+}
+```
+
+The HLS pragmas used are:
+
+*   `#pragma HLS INTERFACE`: These pragmas specify the interfaces for the kernel, including the memory-mapped interfaces for the input and output arrays, and the AXI-Lite interface for the control signals.
+*   `#pragma HLS DATAFLOW`: This pragma specifies that the kernel is a dataflow-oriented kernel, which allows the HLS compiler to optimize the data dependencies and parallelize the computation.
+*   `#pragma HLS DATA_PACK`: These pragmas specify that the input and output arrays are packed together in memory, which can improve memory access patterns and reduce memory bandwidth requirements.
+*   `#pragma HLS LOOP_TRIPCOUNT`: These pragmas specify the minimum and maximum trip counts for each loop, which can help the HLS compiler optimize the loop unrolling and parallelization.
+
+These pragmas can help the HLS compiler optimize the kernel for better performance, scalability, and memory efficiency.

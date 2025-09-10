@@ -1,0 +1,185 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+You are given some HLS pragma insertion examples.
+
+Example 1: 
+(4.9)
+
+Note that the equations for deriving an , bn , and cn introduce the notion of a “negative” frequency. While this physically does not make much sense, mathematically we can think about as
+a “negative” rotation on the complex plane. A “positive” frequency indicates that the complex
+number rotates in a counterclockwise direction in the complex plane. A negative frequency simply
+means that we are rotating in the opposite (clockwise) direction on the complex plane.
+This idea is further illustrated by the relationship of cosine, sine, and the complex exponential.
+Cosine can be viewed as the real part of the complex exponential and it can also be derived as the
+sum of two complex exponentials – one with a positive frequency and the other with a negative
+frequency as shown in Equation 4.10.
+cos(x) = Re{ejx } =
+
+ejx + e−jx
+2
+
+(4.10)
+
+Example 2: 
+n−1
+Y
+
+Ki =
+
+i=0
+
+n−1
+Y
+i=0
+
+√
+
+1
+1 + 2−2i
+
+(3.24)
+
+and
+K = lim K(n) ≈ 0.6072529350088812561694
+n→∞
+
+(3.25)
+
+The scaling factors for different iterations can be calculated in advance and stored in a table. If we
+always perform a fixed number of rotations, this is simply one constant. This correction could also
+be made in advance by scaling v0 appropriately before performing the rotations. Sometimes it is
+ok to ignore this scaling, which results in a processing gain
+n−1
+
+A=
+
+Yp
+1
+= lim
+1 + 2−2i ≈ 1.64676025812107
+n→∞
+K
+
+(3.26)
+
+i=0
+
+Example 3: 
+void spmv(int rowPtr[NUM ROWS+1], int columnIndex[NNZ],
+DTYPE values[NNZ], DTYPE y[SIZE], DTYPE x[SIZE])
+{
+L1: for (int i = 0; i < NUM ROWS; i++) {
+DTYPE y0 = 0;
+L2: for (int k = rowPtr[i]; k < rowPtr[i+1]; k++) {
+#pragma HLS unroll factor=8
+#pragma HLS pipeline
+y0 += values[k] ∗ x[columnIndex[k]];
+}
+y[i] = y0;
+}
+}
+Figure 6.2: The baseline code for sparse matrix vector (SpMV) multiplication, which performs the
+operation y = M · x. The variables rowPtr, columnIndex, and values hold M in CRS format. The
+first for loop iterates across the rows while the second nested for loop iterates across the columns
+of M by multiplying each non-zero element by the corresponding element in the vector x which
+results in one element in the resulting vector y.
+
+Optimize the following code by inserting pragma HLS lines.
+
+void kernel_covariance(int m,int n,float float_n,float data[100][80],float cov[80][80],float mean[80])
+{
+  int i;
+  int j;
+  int k;
+{
+    
+    
+    
+    for (j = 0; j < 80; j++) {
+      mean[j] = 0.0;
+      
+      for (i = 0; i < 100; i++) {
+        mean[j] += data[i][j];
+      }
+      mean[j] /= float_n;
+    }
+    
+    
+    
+    for (i = 0; i < 100; i++) {
+      
+      for (j = 0; j < 80; j++) {
+        data[i][j] -= mean[j];
+      }
+    }
+    
+    
+    
+    for (i = 0; i < 80; i++) {
+      
+      for (j = i; j < 80; j++) {
+        cov[i][j] = 0.0;
+        
+        for (k = 0; k < 100; k++) {
+          cov[i][j] += data[k][i] * data[k][j];
+        }
+        cov[i][j] /= float_n - 1.0;
+        cov[j][i] = cov[i][j];
+      }
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+Here is the optimized code with HLS pragmas:
+
+```c
+void kernel_covariance(int m, int n, float float_n, float data[100][80], float cov[80][80], float mean[80]) {
+  int i;
+  int j;
+  int k;
+  
+  #pragma HLS interface m_axi port=data[0] depth=100 bundle=gmem
+  #pragma HLS interface m_axi port=cov[0] depth=80 bundle=gmem
+  #pragma HLS interface m_axi port=mean[0] depth=80 bundle=gmem
+  
+  for (j = 0; j < 80; j++) {
+    mean[j] = 0.0;
+    
+    #pragma HLS loop_tripcount min=1 max=80 avg=40
+    #pragma HLS pipeline II=1
+    for (i = 0; i < 100; i++) {
+      mean[j] += data[i][j];
+    }
+    mean[j] /= float_n;
+  }
+  
+  for (i = 0; i < 100; i++) {
+    
+    #pragma HLS loop_tripcount min=1 max=100 avg=50
+    for (j = 0; j < 80; j++) {
+      data[i][j] -= mean[j];
+    }
+  }
+  
+  for (i = 0; i < 80; i++) {
+    
+    #pragma HLS loop_tripcount min=1 max=80 avg=40
+    for (j = i; j < 80; j++) {
+      cov[i][j] = 0.0;
+      
+      #pragma HLS loop_tripcount min=1 max=100 avg=50
+      for (k = 0; k < 100; k++) {
+        cov[i][j] += data[k][i] * data[k][j];
+      }
+      cov[i][j] /= float_n - 1.0;
+      cov[j][i] = cov[i][j];
+    }
+  }
+}
+```
+
+Note that I've added HLS pragmas to specify the interface for the arrays, as well as loop trip counts and pipeline directives to optimize the code for hardware execution. The `m_axi` interface is used to specify the memory interface for the arrays, and the `loop_tripcount` directive is used to specify the expected number of iterations for each loop. The `pipeline` directive is used to specify the pipeline depth for each loop.

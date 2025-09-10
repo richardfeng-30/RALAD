@@ -1,0 +1,89 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+Optimize the following code by inserting pragma HLS lines. Before responding with any code, think step by step about the HLS optimizations that will improve performance and explain your reasoning. Finally, generate the C code with pragma HLS.
+
+
+void kernel_gesummv(int n,float alpha,float beta,float A[90][90],float B[90][90],float tmp[90],float x[90],float y[90])
+{
+  int i;
+  int j;
+{
+    
+    
+    
+    for (i = 0; i < 90; i++) {
+      tmp[i] = 0.0;
+      y[i] = 0.0;
+      
+      for (j = 0; j < 90; j++) {
+        tmp[i] = A[i][j] * x[j] + tmp[i];
+        y[i] = B[i][j] * x[j] + y[i];
+      }
+      y[i] = alpha * tmp[i] + beta * y[i];
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+To optimize the code, we will focus on the following areas:
+
+1. Loop Pipelining: The inner loop iterates 90 times, which is a significant amount. By pipelining this loop, we can reduce the latency and increase the throughput.
+
+2. Loop Unrolling: Unrolling the inner loop can help to reduce the overhead of the loop control statements and improve the cache efficiency.
+
+3. Memory Access Optimization: The code accesses elements of arrays A, B, x, and y in a sequential manner. We can use the #pragma HLS dependence directive to specify the memory access patterns.
+
+Here is the optimized code with pragma HLS:
+
+```c
+void kernel_gesummv(int n, float alpha, float beta, float A[90][90], float B[90][90], float tmp[90], float x[90], float y[90])
+{
+    #pragma HLS INTERFACE m_axi port=A offset=slave
+    #pragma HLS INTERFACE m_axi port=B offset=slave
+    #pragma HLS INTERFACE m_axi port=tmp offset=slave
+    #pragma HLS INTERFACE m_axi port=x offset=slave
+    #pragma HLS INTERFACE m_axi port=y offset=slave
+
+    #pragma HLS INTERFACE s_axli port=n
+    #pragma HLS INTERFACE s_axli port=alpha
+    #pragma HLS INTERFACE s_axli port=beta
+    #pragma HLS INTERFACE s_axli port=return
+
+    #pragma HLS DATAFLOW
+
+    #pragma HLS pipeline II=1
+    #pragma HLS unroll factor=4
+
+    for (int i = 0; i < 90; i++) {
+        #pragma HLS dependence variable=tmp inter dependence
+        #pragma HLS dependence variable=y inter dependence
+
+        tmp[i] = 0.0;
+        y[i] = 0.0;
+
+        for (int j = 0; j < 90; j += 4) {
+            float sum1 = A[i][j] * x[j] + A[i][j+1] * x[j+1] + A[i][j+2] * x[j+2] + A[i][j+3] * x[j+3];
+            float sum2 = B[i][j] * x[j] + B[i][j+1] * x[j+1] + B[i][j+2] * x[j+2] + B[i][j+3] * x[j+3];
+
+            tmp[i] = sum1 + tmp[i];
+            y[i] = sum2 + y[i];
+        }
+
+        y[i] = alpha * tmp[i] + beta * y[i];
+    }
+}
+```
+
+In this optimized code, we have used the following directives:
+
+*   `#pragma HLS INTERFACE m_axi`: This directive is used to specify the interface between the kernel and the host.
+*   `#pragma HLS DATAFLOW`: This directive is used to specify that the kernel is a dataflow kernel.
+*   `#pragma HLS pipeline II=1`: This directive is used to specify the pipeline depth of the kernel.
+*   `#pragma HLS unroll factor=4`: This directive is used to specify the unrolling factor of the inner loop.
+*   `#pragma HLS dependence variable=tmp inter dependence`: This directive is used to specify the inter dependence between the elements of the `tmp` array.
+*   `#pragma HLS dependence variable=y inter dependence`: This directive is used to specify the inter dependence between the elements of the `y` array.
+
+By using these directives, we have optimized the code to improve its performance and reduce its latency.

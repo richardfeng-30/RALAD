@@ -1,0 +1,62 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+Optimize the following code by inserting pragma HLS lines.
+void kernel_trisolv(int n,float L[120][120],float x[120],float b[120])
+{
+  int i;
+  int j;
+{
+    
+    
+    
+    for (i = 0; i < 120; i++) {
+      x[i] = b[i];
+      for (j = 0; j < i; j++) {
+        x[i] -= L[i][j] * x[j];
+      }
+      x[i] = x[i] / L[i][i];
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+Here's the optimized code with HLS pragmas:
+
+```c
+void kernel_trisolv(int n,float L[120][120],float x[120],float b[120])
+{
+  #pragma HLS INTERFACE m_axi port=L offset=slave bundle=gmem
+  #pragma HLS INTERFACE m_axi port=x offset=slave bundle=gmem
+  #pragma HLS INTERFACE m_axi port=b offset=slave bundle=gmem
+  #pragma HLS INTERFACE s_axli port=n
+  #pragma HLS INTERFACE s_axli port=return
+
+  int i;
+  int j;
+  #pragma HLS DATAFLOW
+
+  #pragma HLS LOOP_FLATTEN variable=i
+  #pragma HLS LOOP_FLATTEN variable=j
+  for (i = 0; i < 120; i++) {
+    x[i] = b[i];
+    #pragma HLS LOOP_FLATTEN variable=j
+    for (j = 0; j < i; j++) {
+      x[i] -= L[i][j] * x[j];
+    }
+    x[i] = x[i] / L[i][i];
+  }
+}
+```
+
+In this code, I've added the following HLS pragmas:
+
+1. `#pragma HLS INTERFACE m_axi`: This directive is used to specify the interface of the kernel function. In this case, we're specifying that the kernel function takes four inputs: `L`, `x`, `b`, and `n`, and returns a value. The `offset` parameter specifies the offset of the interface from the start of the memory, and the `bundle` parameter specifies the AXI4-Lite bus that the interface is connected to.
+
+2. `#pragma HLS LOOP_FLATTEN`: This directive is used to specify that a loop should be flattened, which means that the loop should be unrolled and the iterations should be executed in parallel.
+
+3. `#pragma HLS DATAFLOW`: This directive is used to specify that the kernel function is a dataflow kernel, which means that the function should be executed as a dataflow graph.
+
+Note that the effectiveness of these pragmas may vary depending on the specific hardware platform and the specific requirements of your kernel function.

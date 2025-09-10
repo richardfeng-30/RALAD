@@ -1,0 +1,71 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+Optimize the following code by inserting pragma HLS lines.
+void kernel_seidel_2d(int tsteps,int n,float A[120][120])
+{
+  int t;
+  int i;
+  int j;
+{
+    
+    
+    
+    for (t = 0; t <= 40 - 1; t++) {
+      
+      
+      
+      for (i = 1; i <= 120 - 2; i++) {
+        
+        for (j = 1; j <= 120 - 2; j++) {
+          A[i][j] = (A[i - 1][j - 1] + A[i - 1][j] + A[i - 1][j + 1] + A[i][j - 1] + A[i][j] + A[i][j + 1] + A[i + 1][j - 1] + A[i + 1][j] + A[i + 1][j + 1]) / 9.0;
+        }
+      }
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+Here is the optimized code with HLS pragmas:
+
+```c
+void kernel_seidel_2d(int tsteps, int n, float A[120][120])
+{
+    #pragma HLS INTERFACE m_axi port=A[0] offset=slave bundle=gmem
+    #pragma HLS INTERFACE axis port=A[0]
+    #pragma HLS INTERFACE s_axilite port=tsteps
+    #pragma HLS INTERFACE s_axilite port=n
+    #pragma HLS INTERFACE s_axilite port=A
+
+    int t;
+    int i;
+    int j;
+
+    #pragma HLS DATAFLOW
+
+    #pragma HLS LOOP_FLATTEN min_loop_count=1
+    #pragma HLS LOOP_TRIPCOUNT min=41 max=41 avg=41
+    for (t = 0; t <= 40 - 1; t++) {
+        #pragma HLS LOOP_FLATTEN min_loop_count=1
+        #pragma HLS LOOP_TRIPCOUNT min=119 max=119 avg=119
+        for (i = 1; i <= 120 - 2; i++) {
+            #pragma HLS LOOP_FLATTEN min_loop_count=1
+            #pragma HLS LOOP_TRIPCOUNT min=119 max=119 avg=119
+            for (j = 1; j <= 120 - 2; j++) {
+                A[i][j] = (A[i - 1][j - 1] + A[i - 1][j] + A[i - 1][j + 1] + A[i][j - 1] + A[i][j] + A[i][j + 1] + A[i + 1][j - 1] + A[i + 1][j] + A[i + 1][j + 1]) / 9.0;
+            }
+        }
+    }
+}
+```
+
+In this optimized code, I have added the following HLS pragmas:
+
+* `#pragma HLS INTERFACE`: This directive is used to specify the interfaces of the kernel function. In this case, I have specified that the kernel function takes an input array `A` and returns an output array `A`.
+* `#pragma HLS DATAFLOW`: This directive is used to specify that the kernel function is a dataflow kernel, which means that it does not have any dependencies between iterations.
+* `#pragma HLS LOOP_FLATTEN`: This directive is used to specify that the loops in the kernel function should be flattened, which means that they should be executed sequentially.
+* `#pragma HLS LOOP_TRIPCOUNT`: This directive is used to specify the trip count of the loops in the kernel function, which is the number of iterations that the loop will execute. In this case, I have specified the trip count as a range of values, from 41 to 41, which is the number of iterations that the outer loop will execute.
+
+By adding these HLS pragmas, the kernel function can be optimized for hardware acceleration using the Vivado HLS tool.

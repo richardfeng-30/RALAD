@@ -1,0 +1,81 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+Optimize the following code by inserting pragma HLS lines. Before responding with any code, think step by step about the HLS optimizations that will improve performance and explain your reasoning. Finally, generate the C code with pragma HLS.
+
+void kernel_jacobi_1d(int tsteps,int n,float A[120],float B[120])
+{
+  int t;
+  int i;
+{
+    
+    
+    
+    for (t = 0; t < 40; t++) {
+      
+      for (i = 1; i < 120 - 1; i++) {
+        B[i] = 0.33333 * (A[i - 1] + A[i] + A[i + 1]);
+      }
+      
+      for (i = 1; i < 120 - 1; i++) {
+        A[i] = 0.33333 * (B[i - 1] + B[i] + B[i + 1]);
+      }
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+To optimize the given code for performance, I will consider the following HLS optimizations:
+
+1.  **Unrolling Loops:** To reduce the number of iterations and improve memory access, I will unroll the inner loops. This will reduce the overhead of loop control and improve data locality.
+
+2.  **Pipeline and Unroll the Outer Loop:** To further improve performance, I will pipeline and unroll the outer loop. This will allow the kernel to process multiple iterations simultaneously, reducing the overall execution time.
+
+Here is the optimized C code with pragma HLS directives:
+
+```c
+void kernel_jacobi_1d(int tsteps,int n,float A[120],float B[120])
+{
+    #pragma HLS INTERFACE m_axi port=A offset=slave bundle=gmem
+    #pragma HLS INTERFACE m_axi port=B offset=slave bundle=gmem
+    #pragma HLS INTERFACE s_axli port=tsteps offset=slave bundle=control
+    #pragma HLS INTERFACE s_axli port=n offset=slave bundle=control
+    #pragma HLS INTERFACE s_axlo port=A offset=slave bundle=control
+    #pragma HLS INTERFACE s_axlo port=B offset=slave bundle=control
+
+    #pragma HLS DATAFLOW
+
+    #pragma HLS pipeline II=4
+
+    int t;
+    int i;
+    for (t = 0; t < 40; t += 4) {
+        #pragma HLS loop_unroll
+        for (i = 1; i < 120 - 1; i += 4) {
+            B[i] = 0.33333 * (A[i - 1] + A[i] + A[i + 1]);
+            B[i + 1] = 0.33333 * (A[i - 1] + A[i] + A[i + 1]);
+            B[i + 2] = 0.33333 * (A[i - 1] + A[i] + A[i + 1]);
+            B[i + 3] = 0.33333 * (A[i - 1] + A[i] + A[i + 1]);
+        }
+        #pragma HLS loop_unroll
+        for (i = 1; i < 120 - 1; i += 4) {
+            A[i] = 0.33333 * (B[i - 1] + B[i] + B[i + 1]);
+            A[i + 1] = 0.33333 * (B[i - 1] + B[i] + B[i + 1]);
+            A[i + 2] = 0.33333 * (B[i - 1] + B[i] + B[i + 1]);
+            A[i + 3] = 0.33333 * (B[i - 1] + B[i] + B[i + 1]);
+        }
+    }
+}
+```
+
+In this optimized code, I have added the following HLS pragmas:
+
+*   `#pragma HLS INTERFACE` directives to specify the interfaces for the kernel.
+*   `#pragma HLS DATAFLOW` to specify that the kernel is a dataflow kernel.
+*   `#pragma HLS pipeline II=4` to pipeline the outer loop with a pipeline depth of 4.
+*   `#pragma HLS loop_unroll` to unroll the inner loops.
+*   `#pragma HLS loop_unroll` is used to unroll the inner loops.
+
+These optimizations should improve the performance of the kernel by reducing the number of iterations, improving data locality, and allowing the kernel to process multiple iterations simultaneously.

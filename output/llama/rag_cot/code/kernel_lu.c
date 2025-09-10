@@ -1,0 +1,52 @@
+The given code is an implementation of the LU decomposition algorithm. This algorithm is widely used in linear algebra and is a key component in many applications such as solving systems of linear equations, finding eigenvalues, and computing determinants.
+
+To optimize this code for HLS, we need to identify the loops and the dependencies between them. The given code has three nested loops, which can be optimized using HLS pragmas.
+
+Here is the optimized code with HLS pragmas:
+
+```c
+void kernel_lu(int n, float A[120][120]) {
+#pragma HLS INTERFACE m_axi port=A[0] depth=120
+#pragma HLS INTERFACE s_axilite port=n
+#pragma HLS INTERFACE s_axilite port=return
+
+  int i;
+  int j;
+  int k;
+
+  for (i = 0; i < 120; i++) {
+#pragma HLS LOOP_TRIPCOUNT min=120 max=120 avg=120
+#pragma HLS PIPELINE II=1
+    for (j = 0; j < i; j++) {
+      for (k = 0; k < j; k++) {
+#pragma HLS UNROLL factor=4
+        A[i][j] -= A[i][k] * A[k][j];
+      }
+      A[i][j] /= A[j][j];
+    }
+
+    for (j = i; j < 120; j++) {
+      for (k = 0; k < i; k++) {
+#pragma HLS UNROLL factor=4
+        A[i][j] -= A[i][k] * A[k][j];
+      }
+    }
+  }
+}
+```
+
+In this code, we have added the following HLS pragmas:
+
+1. `#pragma HLS INTERFACE m_axi port=A[0] depth=120`: This pragma specifies the interface for the 2D array A. The `m_axi` keyword indicates that this is an AXI4 memory-mapped interface.
+
+2. `#pragma HLS INTERFACE s_axilite port=n`: This pragma specifies the interface for the variable n. The `s_axilite` keyword indicates that this is an AXI4-lite interface.
+
+3. `#pragma HLS INTERFACE s_axilite port=return`: This pragma specifies the interface for the return statement.
+
+4. `#pragma HLS LOOP_TRIPCOUNT min=120 max=120 avg=120`: This pragma specifies the trip count for the outer loop. The `min` and `max` keywords specify the minimum and maximum number of iterations, respectively. The `avg` keyword specifies the average number of iterations.
+
+5. `#pragma HLS PIPELINE II=1`: This pragma specifies that the innermost loop should be pipelined with a pipeline depth of 1.
+
+6. `#pragma HLS UNROLL factor=4`: This pragma specifies that the innermost loop should be unrolled by a factor of 4. This can improve the performance by reducing the number of iterations.
+
+These pragmas can be adjusted based on the specific requirements of the target hardware and the desired performance.

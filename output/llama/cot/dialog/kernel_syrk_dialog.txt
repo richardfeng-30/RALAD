@@ -1,0 +1,100 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+Optimize the following code by inserting pragma HLS lines. Before responding with any code, think step by step about the HLS optimizations that will improve performance and explain your reasoning. Finally, generate the C code with pragma HLS.
+
+void kernel_syrk(int n,int m,float alpha,float beta,float C[80][80],float A[80][60])
+{
+  int i;
+  int j;
+  int k;
+//BLAS PARAMS
+//TRANS = 'N'
+//UPLO  = 'L'
+// =>  Form  C := alpha*A*A**T + beta*C.
+//A is NxM
+//C is NxN
+{
+    
+    
+    
+    for (i = 0; i < 80; i++) {
+      for (j = 0; j <= i; j++) {
+        C[i][j] *= beta;
+      }
+      
+      
+      
+      for (k = 0; k < 60; k++) {
+        for (j = 0; j <= i; j++) {
+          C[i][j] += alpha * A[i][k] * A[j][k];
+        }
+      }
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+The given code is a kernel function that performs a symmetric rank-k update (SYRK) operation on a matrix C. The SYRK operation is a common operation in linear algebra and is used in many applications, including linear regression, principal component analysis, and singular value decomposition.
+
+To optimize the code for high-level synthesis (HLS), we need to consider the following factors:
+
+1. Loop Unrolling: Loop unrolling is a technique that involves increasing the number of iterations performed by a loop at a time. This can reduce the number of loop iterations and improve performance.
+
+2. Pipeline Register: The pipeline register directive (#pragma HLS pipeline II=1) is used to specify the number of pipeline stages in a loop. This can improve performance by increasing the amount of parallelism in the code.
+
+3. Loop Fusion: Loop fusion is a technique that involves combining multiple loops into a single loop. This can reduce the overhead of loop control statements and improve performance.
+
+Here is the optimized code with HLS pragmas:
+
+```c
+void kernel_syrk(int n,int m,float alpha,float beta,float C[80][80],float A[80][60])
+{
+  int i;
+  int j;
+  int k;
+//BLAS PARAMS
+//TRANS = 'N'
+//UPLO  = 'L'
+// =>  Form  C := alpha*A*A**T + beta*C.
+//A is NxM
+//C is NxN
+
+  #pragma HLS dataflow
+  #pragma HLS pipeline II=1
+  
+  for (i = 0; i < 80; i++) {
+    #pragma HLS loop_tripcount min=1 max=80
+    #pragma HLS pipeline II=1
+    
+    for (j = 0; j <= i; j++) {
+      #pragma HLS unroll
+      C[i][j] *= beta;
+    }
+    
+    for (k = 0; k < 60; k++) {
+      #pragma HLS loop_tripcount min=1 max=60
+      #pragma HLS pipeline II=1
+      
+      for (j = 0; j <= i; j++) {
+        #pragma HLS unroll
+        C[i][j] += alpha * A[i][k] * A[j][k];
+      }
+    }
+  }
+}
+```
+
+In the above code, we have added the following HLS pragmas:
+
+1. `#pragma HLS dataflow`: This directive is used to specify that the function is a dataflow function, which means that it can be executed in parallel.
+
+2. `#pragma HLS pipeline II=1`: This directive is used to specify the number of pipeline stages in a loop. In this case, we have set the number of pipeline stages to 1.
+
+3. `#pragma HLS loop_tripcount min=1 max=80` and `#pragma HLS loop_tripcount min=1 max=60`: These directives are used to specify the minimum and maximum number of iterations for a loop. This can help the HLS compiler to generate more efficient code.
+
+4. `#pragma HLS unroll`: This directive is used to specify that a loop should be unrolled. In this case, we have unrolled the inner loops to improve performance.
+
+By adding these HLS pragmas, we can improve the performance of the code by increasing the amount of parallelism and reducing the number of loop iterations.

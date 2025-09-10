@@ -1,0 +1,198 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+You are given some HLS pragma insertion examples.
+
+Example 1: 
+void matrixmul(int A[N][M], int B[M][P], int AB[N][P]) {
+#pragma HLS ARRAY RESHAPE variable=A complete dim=2
+#pragma HLS ARRAY RESHAPE variable=B complete dim=1
+/∗ for each row and column of AB ∗/
+row: for(int i = 0; i < N; ++i) {
+col: for(int j = 0; j < P; ++j) {
+#pragma HLS PIPELINE II=1
+/∗ compute (AB)i,j ∗/
+
+Example 2: 
+N
+−1
+X
+
+g[n] · e
+
+−j2πkn
+N
+
+Example 3: 
+G[k] =
+
+X
+n=0
+
+g[2n] · e
+
+−j2πkn
+N/2
+
+N/2−1
+
++
+
+X
+n=0
+
+103
+
+g[2n + 1] · e
+
+−j2πk(2n)
+N
+
+·e
+
+−j2πk
+N
+
+(5.15)
+
+FAST FOURIER TRANSFORM
+
+In the first summation (even inputs), we simply move the 2 into the denominator so that it is
+now N/2. The second summation (odd inputs) uses the power rule to separate the +1 leaving two
+complex exponentials. We can further modify this equation to
+N/2−1
+
+G[k] =
+
+X
+
+N/2−1
+
+−j2πkn
+
+g[2n] · e N/2 + e
+
+−j2πk
+N
+
+·
+
+n=0
+
+X
+
+−j2πkn
+
+g[2n + 1] · e N/2
+
+(5.16)
+
+n=0
+
+Here we only modify the second summation. First we pull one of the complex exponentials outside
+of the summation since it does not depend upon n. And we also move the 2 into the denominator
+as we did before in the first summation. Note that both summations now have the same complex
+−j2πkn
+
+exponential e N/2 . Finally, we simplify this to
+G[k] = Ak + WNk Bk
+
+(5.17)
+
+Optimize the following code by inserting pragma HLS lines. Before responding with any code, think step by step about the HLS optimizations that will improve performance and explain your reasoning. Finally, generate the C code with pragma HLS.
+
+void kernel_gemm(int ni,int nj,int nk,float alpha,float beta,float C[60][70],float A[60][80],float B[80][70])
+{
+  int i;
+  int j;
+  int k;
+//BLAS PARAMS
+//TRANSA = 'N'
+//TRANSB = 'N'
+// => Form C := alpha*A*B + beta*C,
+//A is NIxNK
+//B is NKxNJ
+//C is NIxNJ
+{
+    
+    
+    
+    for (i = 0; i < 60; i++) {
+      
+      for (j = 0; j < 70; j++) {
+        C[i][j] *= beta;
+      }
+      
+      
+      
+      for (k = 0; k < 80; k++) {
+        
+        for (j = 0; j < 70; j++) {
+          C[i][j] += alpha * A[i][k] * B[k][j];
+        }
+      }
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+To optimize the given code, we need to consider the following HLS pragmas:
+
+1.  ARRAY RESHAPE: This directive is used to reshape arrays in the memory space to optimize memory access. We can apply this directive to the arrays `A`, `B`, and `C` to reduce memory bank conflicts and improve memory access.
+2.  PIPELINE: This directive is used to pipeline the loops to improve the throughput of the kernel. We can apply this directive to the inner loops to pipeline the operations and improve the performance.
+3.  UNROLL: This directive is used to unroll the loops to reduce the overhead of loop control statements. We can apply this directive to the inner loops to unroll the operations and improve the performance.
+
+Here's the optimized code with HLS pragmas:
+
+```c
+void kernel_gemm(int ni,int nj,int nk,float alpha,float beta,float C[60][70],float A[60][80],float B[80][70])
+{
+  #pragma HLS ARRAY RESHAPE variable=A complete dim=2
+  #pragma HLS ARRAY RESHAPE variable=B complete dim=1
+  #pragma HLS ARRAY RESHAPE variable=C complete dim=2
+  
+  int i;
+  int j;
+  int k;
+  
+  //BLAS PARAMS
+  //TRANSA = 'N'
+  //TRANSB = 'N'
+  // => Form C := alpha*A*B + beta*C,
+  //A is NIxNK
+  //B is NKxNJ
+  //C is NIxNJ
+  
+  {
+    for (i = 0; i < 60; i++) {
+      
+      #pragma HLS PIPELINE II=1
+      for (j = 0; j < 70; j++) {
+        C[i][j] *= beta;
+      }
+      
+      
+      
+      for (k = 0; k < 80; k++) {
+        
+        #pragma HLS UNROLL factor=8
+        for (j = 0; j < 70; j++) {
+          C[i][j] += alpha * A[i][k] * B[k][j];
+        }
+      }
+    }
+  }
+}
+```
+
+In this optimized code, we have applied the following HLS pragmas:
+
+*   `#pragma HLS ARRAY RESHAPE variable=A complete dim=2` to reshape the array `A` to reduce memory bank conflicts and improve memory access.
+*   `#pragma HLS ARRAY RESHAPE variable=B complete dim=1` to reshape the array `B` to reduce memory bank conflicts and improve memory access.
+*   `#pragma HLS ARRAY RESHAPE variable=C complete dim=2` to reshape the array `C` to reduce memory bank conflicts and improve memory access.
+*   `#pragma HLS PIPELINE II=1` to pipeline the inner loop to improve the throughput of the kernel.
+*   `#pragma HLS UNROLL factor=8` to unroll the inner loop to reduce the overhead of loop control statements and improve the performance.
+
+These HLS pragmas will help to optimize the performance of the kernel by reducing memory bank conflicts, improving memory access, and improving the throughput of the kernel.

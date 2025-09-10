@@ -1,0 +1,314 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+You are given some HLS pragma insertion examples.
+
+Example 1: 
+for k = 0, . . . , N − 1
+
+(5.13)
+
+n=0
+
+We can divide this equation into two parts, one that sums the even components and one that
+sums the odd components.
+N/2−1
+
+N/2−1
+
+G[k] =
+
+X
+
+g[2n] · e
+
+−j2πk(2n)
+N
+
++
+
+n=0
+
+X
+
+g[2n + 1] · e
+
+−j2πk(2n+1)
+N
+
+(5.14)
+
+n=0
+
+The first part of this equation deals with the even inputs, hence the 2n terms in both g[] and in
+the exponent of e. The second part corresponds to the odd inputs with 2n + 1 in both places. Also
+note that the sums now go to N/2 − 1 in both cases which should make sense since we have divided
+them into two halves.
+We transform Equation 5.14 to the following:
+N/2−1
+
+G[k] =
+
+X
+n=0
+
+g[2n] · e
+
+−j2πkn
+N/2
+
+N/2−1
+
++
+
+X
+n=0
+
+103
+
+g[2n + 1] · e
+
+−j2πk(2n)
+N
+
+·e
+
+−j2πk
+N
+
+(5.15)
+
+FAST FOURIER TRANSFORM
+
+Example 2: 
+G[k] =
+
+X
+n=0
+
+g[2n] · e
+
+−j2πkn
+N/2
+
+N/2−1
+
++
+
+X
+n=0
+
+103
+
+g[2n + 1] · e
+
+−j2πk(2n)
+N
+
+·e
+
+−j2πk
+N
+
+(5.15)
+
+FAST FOURIER TRANSFORM
+
+In the first summation (even inputs), we simply move the 2 into the denominator so that it is
+now N/2. The second summation (odd inputs) uses the power rule to separate the +1 leaving two
+complex exponentials. We can further modify this equation to
+N/2−1
+
+G[k] =
+
+X
+
+N/2−1
+
+−j2πkn
+
+g[2n] · e N/2 + e
+
+−j2πk
+N
+
+·
+
+n=0
+
+X
+
+−j2πkn
+
+g[2n + 1] · e N/2
+
+(5.16)
+
+n=0
+
+Here we only modify the second summation. First we pull one of the complex exponentials outside
+of the summation since it does not depend upon n. And we also move the 2 into the denominator
+as we did before in the first summation. Note that both summations now have the same complex
+−j2πkn
+
+exponential e N/2 . Finally, we simplify this to
+G[k] = Ak + WNk Bk
+
+(5.17)
+
+Example 3: 
+n−1
+Y
+
+Ki =
+
+i=0
+
+n−1
+Y
+i=0
+
+√
+
+1
+1 + 2−2i
+
+(3.24)
+
+and
+K = lim K(n) ≈ 0.6072529350088812561694
+n→∞
+
+(3.25)
+
+The scaling factors for different iterations can be calculated in advance and stored in a table. If we
+always perform a fixed number of rotations, this is simply one constant. This correction could also
+be made in advance by scaling v0 appropriately before performing the rotations. Sometimes it is
+ok to ignore this scaling, which results in a processing gain
+n−1
+
+A=
+
+Yp
+1
+= lim
+1 + 2−2i ≈ 1.64676025812107
+n→∞
+K
+
+(3.26)
+
+i=0
+
+Optimize the following code by inserting pragma HLS lines.
+#include <math.h>
+
+void kernel_gramschmidt(int m,int n,float A[60][80],float R[80][80],float Q[60][80])
+{
+  int i;
+  int j;
+  int k;
+  float nrm;
+{
+    
+    
+    
+    for (k = 0; k < 80; k++) {
+      nrm = 0.0;
+      
+      for (i = 0; i < 60; i++) {
+        nrm += A[i][k] * A[i][k];
+      }
+      R[k][k] = sqrt(nrm);
+      
+      for (i = 0; i < 60; i++) {
+        Q[i][k] = A[i][k] / R[k][k];
+      }
+      
+      for (j = k + 1; j < 80; j++) {
+        R[k][j] = 0.0;
+        
+        for (i = 0; i < 60; i++) {
+          R[k][j] += Q[i][k] * A[i][j];
+        }
+        
+        for (i = 0; i < 60; i++) {
+          A[i][j] = A[i][j] - Q[i][k] * R[k][j];
+        }
+      }
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+Here is the optimized code with HLS pragmas:
+
+```c
+#include <math.h>
+
+void kernel_gramschmidt(int m, int n, float A[60][80], float R[80][80], float Q[60][80]) {
+  #pragma HLS INTERFACE m_axi port=A offset=slave bundle=gmem
+  #pragma HLS INTERFACE m_axi port=R offset=slave bundle=gmem
+  #pragma HLS INTERFACE m_axi port=Q offset=slave bundle=gmem
+  #pragma HLS INTERFACE s_axli port=m
+  #pragma HLS INTERFACE s_axli port=n
+  #pragma HLS INTERFACE s_axli port=A
+  #pragma HLS INTERFACE s_axli port=R
+  #pragma HLS INTERFACE s_axli port=Q
+  #pragma HLS INTERFACE s_axli port=return
+
+  int i;
+  int j;
+  int k;
+  float nrm;
+
+  #pragma HLS DATAFLOW
+
+  // First loop
+  #pragma HLS LOOP_TRIPCOUNT min=80 max=80
+  #pragma HLS PIPELINE II=1
+  for (k = 0; k < 80; k++) {
+    nrm = 0.0;
+
+    #pragma HLS LOOP_TRIPCOUNT min=60 max=60
+    #pragma HLS PIPELINE II=1
+    for (i = 0; i < 60; i++) {
+      nrm += A[i][k] * A[i][k];
+    }
+    R[k][k] = sqrt(nrm);
+
+    #pragma HLS LOOP_TRIPCOUNT min=60 max=60
+    #pragma HLS PIPELINE II=1
+    for (i = 0; i < 60; i++) {
+      Q[i][k] = A[i][k] / R[k][k];
+    }
+  }
+
+  // Second loop
+  #pragma HLS LOOP_TRIPCOUNT min=79 max=79
+  #pragma HLS PIPELINE II=1
+  for (k = 0; k < 80; k++) {
+    #pragma HLS LOOP_TRIPCOUNT min=60 max=60
+    #pragma HLS PIPELINE II=1
+    for (j = k + 1; j < 80; j++) {
+      R[k][j] = 0.0;
+
+      #pragma HLS LOOP_TRIPCOUNT min=60 max=60
+      #pragma HLS PIPELINE II=1
+      for (i = 0; i < 60; i++) {
+        R[k][j] += Q[i][k] * A[i][j];
+      }
+
+      #pragma HLS LOOP_TRIPCOUNT min=60 max=60
+      #pragma HLS PIPELINE II=1
+      for (i = 0; i < 60; i++) {
+        A[i][j] = A[i][j] - Q[i][k] * R[k][j];
+      }
+    }
+  }
+}
+```
+
+The HLS pragmas are used to specify the interfaces, loops, and memory optimization. The `#pragma HLS INTERFACE` directives specify the interfaces for the function, including the memory-mapped arrays. The `#pragma HLS LOOP_TRIPCOUNT` directives specify the trip count for each loop, which helps the HLS compiler to optimize the loop. The `#pragma HLS PIPELINE` directives specify the pipeline II (iteration interval) for each loop, which helps the HLS compiler to optimize the loop for pipeline processing.

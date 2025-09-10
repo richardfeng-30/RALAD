@@ -1,0 +1,217 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+You are given some HLS pragma insertion examples.
+
+Example 1: 
+for (j = 0; j < SIZE; j++) {
+sum += V In[j] ∗ M[i][j];
+}
+V Out[i] = sum;
+}
+}
+Figure 4.11: Matrix-vector multiplication with a particular choice of array partitioning and pipelining.
+
+i
+Function Interval = 13
+
+V In[0]
+
+Loop Interval = 1
+
+V In[1]
+
+M[][0]
+
+V In[2]
+
+M[][1]
+
+V In[3]
+
+M[][2]
+
+V In[4]
+
+M[][3]
+
+V In[5]
+
+M[][4]
+
+V In[6]
+
+M[][5]
+
+V In[7]
+
+M[][6]
+
+Loop Latency = 6
+
+M[][7]
+
+Function Latency = 13
+
+V in[]
+
+V Out[]
+
+V out[i]
+
+Figure 4.12: Matrix-vector multiplication architecture with a particular choice of array partitioning
+and pipelining. The pipelining registers have been elided and the behavior is shown at right.
+
+89
+
+DISCRETE FOURIER TRANSFORM
+
+V In[2]
+
+M[][1]
+
+V In[3]
+
+M[][2]
+
+V In[4]
+
+M[][3]
+
+V In[5]
+
+M[][4]
+
+V In[6]
+
+M[][5]
+
+V In[7]
+
+M[][6]
+M[][7]
+
+j%3
+
+i,j%3
+V In[0-2]
+V In[3-5]
+V In[6-7]
+
+M[][0-2]
+M[][3-5]
+
+To Adders
+
+M[][0]
+
+To Adders
+
+V In[1]
+
+To Adders
+
+V In[0]
+
+To Adders
+
+i
+
+M[][6-7]
+
+Example 2: 
+for (i = N − 1; i > 0; i−−) {
+shift reg[i] = shift reg[i − 1];
+}
+shift reg[0] = x;
+acc = 0;
+MAC:
+
+Example 3: 
+for (j = 0; j < SIZE; j++) {
+sum += V In[j] ∗ M[i][j];
+}
+V Out[i] = sum;
+}
+}
+Figure 4.4: Simple code implementing a matrix-vector multiplication.
+
+Optimize the following code by inserting pragma HLS lines.
+void kernel_mvt(int n,float x1[120],float x2[120],float y_1[120],float y_2[120],float A[120][120])
+{
+  int i;
+  int j;
+{
+    
+    
+    
+    for (i = 0; i < 120; i++) {
+      
+      for (j = 0; j < 120; j++) {
+        x1[i] = x1[i] + A[i][j] * y_1[j];
+      }
+    }
+    
+    
+    
+    for (i = 0; i < 120; i++) {
+      
+      for (j = 0; j < 120; j++) {
+        x2[i] = x2[i] + A[j][i] * y_2[j];
+      }
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+Here is the optimized code with HLS pragmas:
+
+```c
+void kernel_mvt(int n, float x1[120], float x2[120], float y_1[120], float y_2[120], float A[120][120])
+{
+  #pragma HLS INTERFACE m_axi port=x1 offset=slave bundle=gmem
+  #pragma HLS INTERFACE m_axi port=x2 offset=slave bundle=gmem
+  #pragma HLS INTERFACE m_axi port=y_1 offset=slave bundle=gmem
+  #pragma HLS INTERFACE m_axi port=y_2 offset=slave bundle=gmem
+  #pragma HLS INTERFACE m_axi port=A offset=slave bundle=gmem
+
+  #pragma HLS DATAFLOW
+  #pragma HLS STREAM variable=x1 depth=120
+  #pragma HLS STREAM variable=x2 depth=120
+  #pragma HLS STREAM variable=y_1 depth=120
+  #pragma HLS STREAM variable=y_2 depth=120
+
+  #pragma HLS LOOP_TRIPCOUNT min=120 max=120
+  #pragma HLS LOOP_FLATTEN min=120 max=120
+
+  for (i = 0; i < 120; i++) {
+    #pragma HLS LOOP_TRIPCOUNT min=120 max=120
+    #pragma HLS LOOP_FLATTEN min=120 max=120
+    for (j = 0; j < 120; j++) {
+      x1[i] = x1[i] + A[i][j] * y_1[j];
+    }
+  }
+
+  #pragma HLS LOOP_TRIPCOUNT min=120 max=120
+  #pragma HLS LOOP_FLATTEN min=120 max=120
+
+  for (i = 0; i < 120; i++) {
+    #pragma HLS LOOP_TRIPCOUNT min=120 max=120
+    #pragma HLS LOOP_FLATTEN min=120 max=120
+    for (j = 0; j < 120; j++) {
+      x2[i] = x2[i] + A[j][i] * y_2[j];
+    }
+  }
+}
+```
+
+In this code, I have added the following HLS pragmas:
+
+1. `#pragma HLS INTERFACE m_axi`: This pragma specifies the interface between the kernel and the memory.
+2. `#pragma HLS DATAFLOW`: This pragma specifies that the kernel is a dataflow kernel.
+3. `#pragma HLS STREAM`: This pragma specifies the streams used by the kernel.
+4. `#pragma HLS LOOP_TRIPCOUNT` and `#pragma HLS LOOP_FLATTEN`: These pragmas specify the loop trip count and loop flattening for the kernel.
+
+These pragmas can help the HLS compiler optimize the kernel for better performance and resource utilization.

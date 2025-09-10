@@ -1,0 +1,100 @@
+### Summary of Relevant HLS Optimization Strategies and Pragmas
+
+To optimize the given kernel for High-Level Synthesis (HLS), the following strategies and pragmas are commonly used:
+
+1. **Loop Pipelining (`#pragma HLS PIPELINE`)**  
+   Pipelining loops allows initiation of a new iteration before the previous one finishes, increasing throughput and reducing latency. Applying this pragma to inner and/or outer loops can significantly improve performance.
+
+2. **Loop Unrolling (`#pragma HLS UNROLL`)**  
+   Unrolling loops replicates hardware to execute multiple iterations in parallel, increasing parallelism at the cost of resource usage. Partial unrolling can balance resource utilization and performance.
+
+3. **Array Partitioning (`#pragma HLS ARRAY_PARTITION`)**  
+   Partitioning arrays into smaller blocks or completely partitioning them enables parallel access to multiple elements, reducing memory bottlenecks and improving data throughput.
+
+4. **Loop Flattening (`#pragma HLS LOOP_FLATTEN`)**  
+   Flattening nested loops into a single loop can improve pipeline efficiency by reducing loop overhead and enabling better scheduling.
+
+5. **Resource Allocation Control (`#pragma HLS ALLOCATION`)**  
+   This pragma controls the number of hardware resources used for specific operations, helping to keep resource utilization under a target threshold.
+
+6. **Function Inlining and Interface Pragmas**  
+   While not directly applicable here, these can help optimize kernel interfaces and function calls.
+
+### Example Usage from Knowledge Base
+
+- The **MatrixMultiplication** function uses `#pragma HLS PIPELINE II=1` on loops to enable concurrent execution and improve throughput. It also uses `#pragma HLS UNROLL` on inner loops to increase parallelism [Data: Entities (78), Relationships (97, 98)].
+- Array partitioning is used to enable parallel access to arrays, improving performance [Data: Relationships (4388, 4389)].
+- Loop flattening is applied to nested loops to improve pipeline efficiency [Data: Relationships (96)].
+- Pragmas are embedded directly in the source code to ensure directives are applied automatically during synthesis [Data: Relationships (3475)].
+
+### Applying Pragmas to the Provided Code
+
+The kernel has two nested loops: the outer loop over `i` and the inner loop over `j`. The inner loop performs multiply-accumulate operations on arrays `A`, `B`, and `x`. To optimize:
+
+- Pipeline the inner loop to allow initiation interval (II) of 1, maximizing throughput.
+- Unroll the inner loop partially or fully depending on resource constraints to increase parallelism.
+- Partition arrays `A`, `B`, and `x` to enable parallel memory access.
+- Pipeline the outer loop as well if possible, but care must be taken to avoid excessive resource usage.
+- Use loop flattening if beneficial.
+
+Given the resource utilization constraint (under 80%) and compilation time constraint (under 1800s), a balanced approach is to pipeline both loops and partially unroll the inner loop, with array partitioning on the input arrays.
+
+---
+
+### Final Optimized Code with Pragmas
+
+```c
+void kernel_gesummv(int n, float alpha, float beta, float A[90][90], float B[90][90], float tmp[90], float x[90], float y[90])
+{
+#pragma HLS INTERFACE m_axi port=A offset=slave bundle=gmem
+#pragma HLS INTERFACE m_axi port=B offset=slave bundle=gmem
+#pragma HLS INTERFACE m_axi port=tmp offset=slave bundle=gmem
+#pragma HLS INTERFACE m_axi port=x offset=slave bundle=gmem
+#pragma HLS INTERFACE m_axi port=y offset=slave bundle=gmem
+#pragma HLS INTERFACE s_axilite port=n bundle=control
+#pragma HLS INTERFACE s_axilite port=alpha bundle=control
+#pragma HLS INTERFACE s_axilite port=beta bundle=control
+#pragma HLS INTERFACE s_axilite port=return bundle=control
+
+  // Partition arrays to enable parallel access
+#pragma HLS ARRAY_PARTITION variable=A complete dim=2
+#pragma HLS ARRAY_PARTITION variable=B complete dim=2
+#pragma HLS ARRAY_PARTITION variable=x complete dim=1
+
+  int i, j;
+
+  // Pipeline outer loop to improve throughput
+  for (i = 0; i < 90; i++) {
+#pragma HLS PIPELINE II=1
+
+    tmp[i] = 0.0;
+    y[i] = 0.0;
+
+    // Pipeline and partially unroll inner loop for parallelism
+    for (j = 0; j < 90; j++) {
+#pragma HLS PIPELINE II=1
+#pragma HLS UNROLL factor=4
+
+      tmp[i] += A[i][j] * x[j];
+      y[i] += B[i][j] * x[j];
+    }
+
+    y[i] = alpha * tmp[i] + beta * y[i];
+  }
+}
+```
+
+---
+
+### Explanation
+
+- **Interface Pragmas**: Added to specify AXI interfaces for arrays and control signals, which is standard for kernels targeting FPGA accelerators.
+- **Array Partitioning**: Complete partitioning on the second dimension of `A` and `B` and on `x` to allow simultaneous access to multiple elements, reducing memory bottlenecks.
+- **Loop Pipelining**: Applied to both outer and inner loops with initiation interval 1 to maximize throughput.
+- **Loop Unrolling**: Partial unrolling of the inner loop by a factor of 4 balances increased parallelism with resource usage.
+  
+This approach should improve performance significantly while keeping resource usage and compilation time within the specified limits. Further tuning (e.g., adjusting unroll factor) can be done based on synthesis reports.
+
+---
+
+This optimization approach is supported by examples and best practices in HLS optimization, including matrix multiplication and loop optimization techniques [Data: Entities (78, 213), Relationships (97, 98, 4388, 4389, 96, 3475)].

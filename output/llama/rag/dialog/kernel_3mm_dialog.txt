@@ -1,0 +1,170 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+You are given some HLS pragma insertion examples.
+
+Example 1: 
+for computation. Larger FPGAs can have millions of these programmable logic elements.
+How would you program the 2-LUT from Figure 1.1 to implement an XOR gate? An OR
+gate? How many programming bits does an n input (n-LUT) require?
+
+Example 2: 
+N
+−1
+X
+
+g[n] · e
+
+−j2πkn
+N
+
+Example 3: 
+void firI1(data t ∗y, data t x);
+void firQ1(data t ∗y, data t x);
+void firI2(data t ∗y, data t x);
+void firQ2(data t ∗y, data t x);
+
+Optimize the following code by inserting pragma HLS lines.
+void kernel_3mm(int ni,int nj,int nk,int nl,int nm,float E[40][50],float A[40][60],float B[60][50],float F[50][70],float C[50][80],float D[80][70],float G[40][70])
+{
+  int i;
+  int j;
+  int k;
+{
+    
+    
+    
+    for (i = 0; i < 40; i++) {
+      
+      
+      
+      for (j = 0; j < 50; j++) {
+        E[i][j] = 0.0;
+        
+        for (k = 0; k < 60; ++k) {
+          E[i][j] += A[i][k] * B[k][j];
+        }
+      }
+    }
+    
+    
+    
+    for (i = 0; i < 50; i++) {
+      
+      
+      
+      for (j = 0; j < 70; j++) {
+        F[i][j] = 0.0;
+        
+        for (k = 0; k < 80; ++k) {
+          F[i][j] += C[i][k] * D[k][j];
+        }
+      }
+    }
+    
+    
+    
+    for (i = 0; i < 40; i++) {
+      
+      
+      
+      for (j = 0; j < 70; j++) {
+        G[i][j] = 0.0;
+        
+        for (k = 0; k < 50; ++k) {
+          G[i][j] += E[i][k] * F[k][j];
+        }
+      }
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+Here is the optimized code with HLS pragmas:
+```
+void kernel_3mm(int ni,int nj,int nk,int nl,int nm,float E[40][50],float A[40][60],float B[60][50],float F[50][70],float C[50][80],float D[80][70],float G[40][70])
+{
+  #pragma HLS INTERFACE m_axi port=E offset=slave
+  #pragma HLS INTERFACE m_axi port=A offset=slave
+  #pragma HLS INTERFACE m_axi port=B offset=slave
+  #pragma HLS INTERFACE m_axi port=F offset=slave
+  #pragma HLS INTERFACE m_axi port=C offset=slave
+  #pragma HLS INTERFACE m_axi port=D offset=slave
+  #pragma HLS INTERFACE m_axi port=G offset=slave
+
+  #pragma HLS DATAFLOW
+
+  #pragma HLS pipeline II=1
+
+  int i;
+  int j;
+  int k;
+  {
+    #pragma HLS loop_tripcount min=1 max=40
+    #pragma HLS loop_tripcount min=1 max=50
+    #pragma HLS loop_tripcount min=1 max=60
+
+    for (i = 0; i < 40; i++) {
+      #pragma HLS loop_tripcount min=1 max=50
+      #pragma HLS loop_tripcount min=1 max=70
+      #pragma HLS loop_tripcount min=1 max=80
+
+      for (j = 0; j < 50; j++) {
+        E[i][j] = 0.0;
+        #pragma HLS pipeline II=1
+        for (k = 0; k < 60; ++k) {
+          E[i][j] += A[i][k] * B[k][j];
+        }
+      }
+    }
+  }
+
+  {
+    #pragma HLS loop_tripcount min=1 max=50
+    #pragma HLS loop_tripcount min=1 max=70
+    #pragma HLS loop_tripcount min=1 max=80
+
+    for (i = 0; i < 50; i++) {
+      #pragma HLS loop_tripcount min=1 max=70
+      #pragma HLS loop_tripcount min=1 max=70
+
+      for (j = 0; j < 70; j++) {
+        F[i][j] = 0.0;
+        #pragma HLS pipeline II=1
+        for (k = 0; k < 80; ++k) {
+          F[i][j] += C[i][k] * D[k][j];
+        }
+      }
+    }
+  }
+
+  {
+    #pragma HLS loop_tripcount min=1 max=40
+    #pragma HLS loop_tripcount min=1 max=70
+    #pragma HLS loop_tripcount min=1 max=50
+
+    for (i = 0; i < 40; i++) {
+      #pragma HLS loop_tripcount min=1 max=70
+      #pragma HLS loop_tripcount min=1 max=70
+
+      for (j = 0; j < 70; j++) {
+        G[i][j] = 0.0;
+        #pragma HLS pipeline II=1
+        for (k = 0; k < 50; ++k) {
+          G[i][j] += E[i][k] * F[k][j];
+        }
+      }
+    }
+  }
+}
+```
+The HLS pragmas used are:
+
+* `#pragma HLS INTERFACE m_axi`: specifies the interface for the AXI memory-mapped interface.
+* `#pragma HLS DATAFLOW`: specifies that the function is a dataflow function, which allows for pipelining and loop unrolling.
+* `#pragma HLS pipeline II=1`: specifies the pipeline II (iteration interval) for the innermost loop.
+* `#pragma HLS loop_tripcount min=<min> max=<max>`: specifies the minimum and maximum trip count for the loop.
+
+These pragmas can be used to optimize the code for the Xilinx Vivado HLS compiler.

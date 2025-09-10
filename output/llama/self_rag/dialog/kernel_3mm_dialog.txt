@@ -1,0 +1,199 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+You are given some HLS pragma insertion examples.
+
+Example 1: 
+// Calculate matrix multiplication using local data buffer based on input size,
+// and write results into local buffer for out
+loop_count:
+    for (int i = 0; i < rep_count; i++) {
+    arraypart1:
+        for (int row = 0; row < size; row++) {
+#pragma HLS LOOP_TRIPCOUNT min = c_dim max = c_dim
+        arraypart2:
+            for (int col = 0; col < size; col++) {
+#pragma HLS LOOP_TRIPCOUNT min = c_dim max = c_dim
+            arraypart3:
+                for (int j = 0; j < MAX_SIZE; j++) {
+#pragma HLS LOOP_TRIPCOUNT min = c_dim max = c_dim
+                    int result = (col == 0) ? 0 : temp_sum[j];
+                    result += A[row][col] * B[col][j];
+                    temp_sum[j] = result;
+                    if (col == size - 1) C[row][j] = result;
+                }
+            }
+        }
+    }
+
+Example 2: 
+// Write out resulting row of C
+    for (int m = 0; m < M; ++m) {
+      #pragma HLS PIPELINE II=1
+      C[n * M + m] = acc[m];
+    }
+  }
+}
+
+
+
+Example 6
+This example plays with scaling up parallelism in a matrix multiplication example. We add two degrees of parallelism: horizontal vector parallelism, which consumes bandwidth, and pipeline parallelism, which consumes buffer space. In xilinx/Example6.cpp, rather than loading a single value of a before the inner M-loop, we load a higher (parametric) number of elements, allowing us to apply each of them to every value of B loaded. In xilinx/Example6_Vectorized.cpp, we additionally add vectorization, by replacing the primitive data types with vector types, and adjusting the loop bounds accordingly. The two files can be synthesized with make synthesize_example6 and make synthesize_example6_vectorized, respectively.
+
+Example 3: 
+// Burst write from output matrices to global memory
+// Burst write from matrix C
+writeC:
+    for (int itr = 0, i = 0, j = 0; itr < dim * dim; itr++, j++) {
+#pragma HLS LOOP_TRIPCOUNT min = c_dim* c_dim max = c_dim * c_dim
+        if (j == dim) {
+            j = 0;
+            i++;
+        }
+        out_r[itr] = C[i * MAX_DIM + j];
+    }
+}
+
+
+================================================================================
+Example: Array/array_partition_complete
+================================================================================
+--- README ---
+This is a simple example of matrix multiplication (Row x Col) to demonstrate complete array partitioning pragma in HLS
+
+Running the Design using Vitis HLS (edit run_hls.tcl to set $hls_exec and enable specific run steps)
+=========================================================
+vitis-run --mode hls --tcl run_hls.tcl
+
+Optimize the following code by inserting pragma HLS lines.
+//3 Matrix Multiplications
+
+void kernel_3mm(int ni,int nj,int nk,int nl,int nm,float E[40][50],float A[40][60],float B[60][50],float F[50][70],float C[50][80],float D[80][70],float G[40][70])
+{
+  int i;
+  int j;
+  int k;
+{
+    
+    
+    
+    for (i = 0; i < 40; i++) {
+      
+      
+      
+      for (j = 0; j < 50; j++) {
+        E[i][j] = 0.0;
+        
+        for (k = 0; k < 60; ++k) {
+          E[i][j] += A[i][k] * B[k][j];
+        }
+      }
+    }
+    
+    
+    
+    for (i = 0; i < 50; i++) {
+      
+      
+      
+      for (j = 0; j < 70; j++) {
+        F[i][j] = 0.0;
+        
+        for (k = 0; k < 80; ++k) {
+          F[i][j] += C[i][k] * D[k][j];
+        }
+      }
+    }
+    
+    
+    
+    for (i = 0; i < 40; i++) {
+      
+      
+      
+      for (j = 0; j < 70; j++) {
+        G[i][j] = 0.0;
+        
+        for (k = 0; k < 50; ++k) {
+          G[i][j] += E[i][k] * F[k][j];
+        }
+      }
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+Here is the optimized code with HLS pragmas:
+
+```c
+void kernel_3mm(int ni,int nj,int nk,int nl,int nm,float E[40][50],float A[40][60],float B[60][50],float F[50][70],float C[50][80],float D[80][70],float G[40][70])
+{
+  #pragma HLS DATAFLOW
+  int i;
+  int j;
+  int k;
+{
+    
+    
+    
+    // Matrix Multiplication 1
+    #pragma HLS LOOP_TRIPCOUNT min = 40 max = 40
+    for (i = 0; i < 40; i++) {
+      
+      
+      
+      #pragma HLS LOOP_TRIPCOUNT min = 50 max = 50
+      for (j = 0; j < 50; j++) {
+        E[i][j] = 0.0;
+        
+        #pragma HLS LOOP_TRIPCOUNT min = 60 max = 60
+        for (k = 0; k < 60; ++k) {
+          E[i][j] += A[i][k] * B[k][j];
+        }
+      }
+    }
+    
+    
+    
+    // Matrix Multiplication 2
+    #pragma HLS LOOP_TRIPCOUNT min = 50 max = 50
+    for (i = 0; i < 50; i++) {
+      
+      
+      
+      #pragma HLS LOOP_TRIPCOUNT min = 70 max = 70
+      for (j = 0; j < 70; j++) {
+        F[i][j] = 0.0;
+        
+        #pragma HLS LOOP_TRIPCOUNT min = 80 max = 80
+        for (k = 0; k < 80; ++k) {
+          F[i][j] += C[i][k] * D[k][j];
+        }
+      }
+    }
+    
+    
+    
+    // Matrix Multiplication 3
+    #pragma HLS LOOP_TRIPCOUNT min = 40 max = 40
+    for (i = 0; i < 40; i++) {
+      
+      
+      
+      #pragma HLS LOOP_TRIPCOUNT min = 70 max = 70
+      for (j = 0; j < 70; j++) {
+        G[i][j] = 0.0;
+        
+        #pragma HLS LOOP_TRIPCOUNT min = 50 max = 50
+        for (k = 0; k < 50; ++k) {
+          G[i][j] += E[i][k] * F[k][j];
+        }
+      }
+    }
+  }
+}
+```
+
+Note that the HLS pragmas are added to specify the trip counts for each loop, which helps the HLS compiler to optimize the code for better performance and resource utilization.

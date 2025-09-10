@@ -1,0 +1,85 @@
+### Summary of Relevant HLS Optimization Strategies and Pragmas
+
+To optimize the given SYRK kernel for High-Level Synthesis (HLS), the main goals are to improve throughput and parallelism while controlling resource usage and compilation time. Based on the knowledge base and common HLS practices, the following strategies and pragmas are relevant:
+
+1. **Loop Pipelining (`#pragma HLS PIPELINE`)**  
+   Applying pipelining to loops can significantly improve throughput by allowing new iterations to start before previous ones finish. The initiation interval (II) can be set to 1 for maximum concurrency, but this may increase resource usage.
+
+2. **Loop Unrolling (`#pragma HLS UNROLL`)**  
+   Unrolling inner loops increases parallelism by replicating hardware for loop iterations. Partial unrolling can balance resource usage and performance.
+
+3. **Loop Flattening (`#pragma HLS LOOP_FLATTEN`)**  
+   Flattening nested loops can improve pipeline efficiency by reducing loop overhead and enabling better scheduling.
+
+4. **Array Partitioning (`#pragma HLS ARRAY_PARTITION`)**  
+   Partitioning arrays, especially multi-dimensional arrays accessed in parallel, can reduce memory access bottlenecks and enable concurrent reads/writes.
+
+5. **Dependence Pragmas (`#pragma HLS DEPENDENCE`)**  
+   These can be used to inform the compiler about the absence of loop-carried dependencies, enabling more aggressive optimizations.
+
+6. **Resource Constraints**  
+   To keep resource utilization under 80%, partial unrolling and selective pipelining are preferred over full unrolling. Also, limiting the initiation interval or applying pragmas only to critical loops helps control resource usage.
+
+7. **Compilation Time**  
+   Excessive unrolling or complex directives can increase compilation time. Balancing unrolling factors and pipelining is key to keeping compilation under 1800s.
+
+### Applying Pragmas to the SYRK Kernel
+
+The kernel has three nested loops: outer `i` loop, middle `j` loop (up to `i`), and inner `k` loop. The computation updates the lower triangular matrix `C` based on `A`.
+
+- The `j` loop is dependent on `i` (since `j <= i`), so full unrolling of `j` is not straightforward.
+- The `k` loop is independent and a good candidate for pipelining.
+- The `i` loop can be pipelined or partially unrolled depending on resource constraints.
+
+### Final Optimized Code with Pragmas
+
+```c
+void kernel_syrk(int n, int m, float alpha, float beta, float C[80][80], float A[80][60])
+{
+    int i, j, k;
+
+    // Partition the arrays to enable parallel access
+    #pragma HLS ARRAY_PARTITION variable=C complete dim=2
+    #pragma HLS ARRAY_PARTITION variable=A complete dim=2
+
+    // Pipeline the outer loop to improve throughput
+    for (i = 0; i < 80; i++) {
+        // Pipeline the j loop with dependence pragma to allow concurrent updates
+        for (j = 0; j <= i; j++) {
+            #pragma HLS PIPELINE II=1
+            C[i][j] *= beta;
+        }
+
+        // Pipeline the k loop to overlap iterations
+        for (k = 0; k < 60; k++) {
+            // Unroll the j loop partially to balance resource usage and parallelism
+            for (j = 0; j <= i; j++) {
+                #pragma HLS UNROLL factor=4
+                #pragma HLS PIPELINE II=1
+                C[i][j] += alpha * A[i][k] * A[j][k];
+            }
+        }
+    }
+}
+```
+
+### Explanation of Applied Pragmas
+
+- **`ARRAY_PARTITION` on `C` and `A` (dimension 2):**  
+  This partitions the second dimension of the arrays, allowing multiple elements in a row to be accessed in parallel, reducing memory bottlenecks.
+
+- **`PIPELINE` on the `j` loop in the beta scaling phase:**  
+  Enables concurrent execution of iterations, improving throughput.
+
+- **`PIPELINE` and `UNROLL` on the nested `j` loop inside the `k` loop:**  
+  Partial unrolling (factor=4) balances resource usage and performance, allowing some parallelism without excessive hardware replication. Pipelining the loop further improves throughput.
+
+This combination aims to maximize parallelism in the inner loops where most computation occurs, while controlling resource usage by limiting unrolling and pipelining scope. The partitioning of arrays supports concurrent memory accesses, which is critical for performance.
+
+### Additional Notes
+
+- The unroll factor can be tuned (e.g., 2, 4, 8) depending on resource utilization reports after synthesis to stay under 80% usage.
+- If resource usage is still high, reduce unroll factor or remove pipelining from the outer loops.
+- Compilation time should remain under 1800s with these moderate pragmas.
+
+This approach leverages common HLS optimization techniques such as pipelining, unrolling, and array partitioning to improve performance while respecting resource and compilation constraints [Data: Entities (78, 357, 3137, 4337); Relationships (97, 98, 96)].

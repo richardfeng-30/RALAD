@@ -1,0 +1,117 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+You are given some HLS pragma insertion examples.
+
+Example 1: 
+int i;
+acc = 0;
+Shift Accum Loop:
+for (i = N − 1; i >= 0; i−−) {
+
+Example 2: 
+for (i = N − 1; i > 0; i−−) {
+shift reg[i] = shift reg[i − 1];
+}
+shift reg[0] = x;
+acc = 0;
+MAC:
+
+Example 3: 
+N
+−1
+X
+
+g[n] · e
+
+−j2πkn
+N
+
+Optimize the following code by inserting pragma HLS lines.
+void kernel_lu(int n,float A[120][120])
+{
+  int i;
+  int j;
+  int k;
+{
+    
+    
+    
+    for (i = 0; i < 120; i++) {
+      
+      for (j = 0; j < i; j++) {
+        for (k = 0; k < j; k++) {
+          A[i][j] -= A[i][k] * A[k][j];
+        }
+        A[i][j] /= A[j][j];
+      }
+      
+      for (j = i; j < 120; j++) {
+        for (k = 0; k < i; k++) {
+          A[i][j] -= A[i][k] * A[k][j];
+        }
+      }
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+Here is the optimized C code with HLS pragmas:
+
+```c
+void kernel_lu(int n, float A[120][120]) {
+  #pragma HLS interface m_axi port=A[0] bundle=gmem
+  int i;
+  int j;
+  int k;
+  float temp;
+  
+  for (i = 0; i < 120; i++) {
+    #pragma HLS loop_tripcount min=1 max=120
+    #pragma HLS pipeline II=1
+    for (j = 0; j < i; j++) {
+      #pragma HLS loop_tripcount min=1 max=120
+      #pragma HLS loop_unroll max=8
+      for (k = 0; k < j; k++) {
+        #pragma HLS unroll
+        temp = A[i][k] * A[k][j];
+        #pragma HLS dependency variable=temp
+        A[i][j] = A[i][j] - temp;
+      }
+      temp = A[j][j];
+      #pragma HLS dependency variable=temp
+      A[i][j] = A[i][j] / temp;
+    }
+    
+    for (j = i; j < 120; j++) {
+      #pragma HLS loop_tripcount min=1 max=120
+      #pragma HLS pipeline II=1
+      for (k = 0; k < i; k++) {
+        #pragma HLS loop_tripcount min=1 max=120
+        #pragma HLS loop_unroll max=8
+        temp = A[i][k] * A[k][j];
+        #pragma HLS dependency variable=temp
+        A[i][j] = A[i][j] - temp;
+      }
+    }
+  }
+}
+```
+
+In this code, I've added the following HLS pragmas:
+
+- `#pragma HLS interface m_axi port=A[0] bundle=gmem` to specify the interface for the 2D array A.
+
+- `#pragma HLS loop_tripcount min=1 max=120` to specify the minimum and maximum trip count for the loops.
+
+- `#pragma HLS pipeline II=1` to specify the pipeline depth for the loops.
+
+- `#pragma HLS loop_unroll max=8` to specify the maximum unroll factor for the loops.
+
+- `#pragma HLS unroll` to specify the unroll factor for the innermost loop.
+
+- `#pragma HLS dependency variable=temp` to specify the dependency between the variables.
+
+Note that the exact pragmas and their values may vary depending on the specific requirements of your design.

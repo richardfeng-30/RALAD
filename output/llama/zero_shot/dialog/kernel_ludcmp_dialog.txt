@@ -1,0 +1,126 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+Optimize the following code by inserting pragma HLS lines.
+void kernel_ludcmp(int n,float A[120][120],float b[120],float x[120],float y[120])
+{
+  int i;
+  int j;
+  int k;
+  float w;
+{
+    
+    
+    
+    for (i = 0; i < 120; i++) {
+      
+      for (j = 0; j < i; j++) {
+        w = A[i][j];
+        for (k = 0; k < j; k++) {
+          w -= A[i][k] * A[k][j];
+        }
+        A[i][j] = w / A[j][j];
+      }
+      
+      for (j = i; j < 120; j++) {
+        w = A[i][j];
+        for (k = 0; k < i; k++) {
+          w -= A[i][k] * A[k][j];
+        }
+        A[i][j] = w;
+      }
+    }
+    
+    
+    
+    for (i = 0; i < 120; i++) {
+      w = b[i];
+      for (j = 0; j < i; j++) {
+        w -= A[i][j] * y[j];
+      }
+      y[i] = w;
+    }
+    
+    
+    
+    for (i = 0; i <= 119; i++) {
+      int _in_i = 119 + -1 * i;
+      w = y[_in_i];
+      for (j = _in_i + 1; j < 120; j++) {
+        w -= A[_in_i][j] * x[j];
+      }
+      x[_in_i] = w / A[_in_i][_in_i];
+    }
+    i = 0 + -1;
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+Here is the optimized code with HLS pragmas:
+
+```c
+void kernel_ludcmp(int n,float A[120][120],float b[120],float x[120],float y[120])
+{
+    #pragma HLS interface m_axi port=A[0] bundle=gmem
+    #pragma HLS interface m_axi port=b[0] bundle=gmem
+    #pragma HLS interface m_axi port=x[0] bundle=gmem
+    #pragma HLS interface m_axi port=y[0] bundle=gmem
+
+    #pragma HLS dataflow
+    int i;
+    int j;
+    int k;
+    float w;
+
+    for (i = 0; i < 120; i++) {
+        #pragma HLS loop_tripcount max=120
+        #pragma HLS pipeline II=1
+        for (j = 0; j < i; j++) {
+            w = A[i][j];
+            #pragma HLS loop_tripcount max=i
+            for (k = 0; k < j; k++) {
+                w -= A[i][k] * A[k][j];
+            }
+            A[i][j] = w / A[j][j];
+        }
+
+        for (j = i; j < 120; j++) {
+            w = A[i][j];
+            #pragma HLS loop_tripcount max=120-i
+            for (k = 0; k < i; k++) {
+                w -= A[i][k] * A[k][j];
+            }
+            A[i][j] = w;
+        }
+    }
+
+    for (i = 0; i < 120; i++) {
+        w = b[i];
+        #pragma HLS loop_tripcount max=120
+        for (j = 0; j < i; j++) {
+            w -= A[i][j] * y[j];
+        }
+        y[i] = w;
+    }
+
+    for (i = 0; i <= 119; i++) {
+        int _in_i = 119 + -1 * i;
+        w = y[_in_i];
+        #pragma HLS loop_tripcount max=120-i
+        for (j = _in_i + 1; j < 120; j++) {
+            w -= A[_in_i][j] * x[j];
+        }
+        x[_in_i] = w / A[_in_i][_in_i];
+    }
+}
+```
+
+Note: The `#pragma HLS dataflow` directive is used to specify that the kernel is a dataflow kernel, which means that it does not have any dependencies between iterations. This can help the HLS compiler to generate more efficient code.
+
+The `#pragma HLS loop_tripcount` directive is used to specify the maximum number of iterations for each loop. This can help the HLS compiler to generate more efficient code by reducing the number of iterations.
+
+The `#pragma HLS pipeline II=1` directive is used to specify that the inner loop should be pipelined with a pipeline depth of 1. This can help the HLS compiler to generate more efficient code by reducing the number of iterations.
+
+The `#pragma HLS interface m_axi` directive is used to specify the interface for the kernel. In this case, it specifies that the kernel uses AXI4 memory-mapped interfaces for accessing the input and output arrays.

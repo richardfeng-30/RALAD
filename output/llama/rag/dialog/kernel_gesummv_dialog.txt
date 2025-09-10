@@ -1,0 +1,154 @@
+=== SYSTEM ===
+Always answer with optimized C code including HLS pragmas. Add appropriate #pragma HLS directives for interfaces, loops, and memory optimization.
+
+=== USER QUERY ===
+You are given some HLS pragma insertion examples.
+
+Example 1: 
+for (i = N − 1; i > 0; i−−) {
+shift reg[i] = shift reg[i − 1];
+}
+shift reg[0] = x;
+acc = 0;
+MAC:
+
+Example 2: 
+G[k] =
+
+X
+n=0
+
+g[2n] · e
+
+−j2πkn
+N/2
+
+N/2−1
+
++
+
+X
+n=0
+
+103
+
+g[2n + 1] · e
+
+−j2πk(2n)
+N
+
+·e
+
+−j2πk
+N
+
+(5.15)
+
+FAST FOURIER TRANSFORM
+
+In the first summation (even inputs), we simply move the 2 into the denominator so that it is
+now N/2. The second summation (odd inputs) uses the power rule to separate the +1 leaving two
+complex exponentials. We can further modify this equation to
+N/2−1
+
+G[k] =
+
+X
+
+N/2−1
+
+−j2πkn
+
+g[2n] · e N/2 + e
+
+−j2πk
+N
+
+·
+
+n=0
+
+X
+
+−j2πkn
+
+g[2n + 1] · e N/2
+
+(5.16)
+
+n=0
+
+Here we only modify the second summation. First we pull one of the complex exponentials outside
+of the summation since it does not depend upon n. And we also move the 2 into the denominator
+as we did before in the first summation. Note that both summations now have the same complex
+−j2πkn
+
+exponential e N/2 . Finally, we simplify this to
+G[k] = Ak + WNk Bk
+
+(5.17)
+
+Example 3: 
+N
+−1
+X
+
+g[n] · e
+
+−j2πkn
+N
+
+Optimize the following code by inserting pragma HLS lines.
+
+void kernel_gesummv(int n,float alpha,float beta,float A[90][90],float B[90][90],float tmp[90],float x[90],float y[90])
+{
+  int i;
+  int j;
+{
+    
+    
+    
+    for (i = 0; i < 90; i++) {
+      tmp[i] = 0.0;
+      y[i] = 0.0;
+      
+      for (j = 0; j < 90; j++) {
+        tmp[i] = A[i][j] * x[j] + tmp[i];
+        y[i] = B[i][j] * x[j] + y[i];
+      }
+      y[i] = alpha * tmp[i] + beta * y[i];
+    }
+  }
+}
+
+
+=== LLAMA RESPONSE ===
+Here is the optimized code with HLS pragmas:
+```
+void kernel_gesummv(int n, float alpha, float beta, float A[90][90], float B[90][90], float tmp[90], float x[90], float y[90]) {
+  #pragma HLS INTERFACE m_axi port=A offset=slave bundle=gmem
+  #pragma HLS INTERFACE m_axi port=B offset=slave bundle=gmem
+  #pragma HLS INTERFACE m_axi port=tmp offset=slave bundle=gmem
+  #pragma HLS INTERFACE m_axi port=x offset=slave bundle=gmem
+  #pragma HLS INTERFACE m_axi port=y offset=slave bundle=gmem
+
+  #pragma HLS INTERFACE s_axilite port=n
+  #pragma HLS INTERFACE s_axilite port=alpha
+  #pragma HLS INTERFACE s_axilite port=beta
+
+  int i;
+  int j;
+  #pragma HLS loop_tripcount min=1 max=90
+  for (i = 0; i < 90; i++) {
+    #pragma HLS loop_tripcount min=1 max=90
+    for (j = 0; j < 90; j++) {
+      tmp[i] = A[i][j] * x[j] + tmp[i];
+      y[i] = B[i][j] * x[j] + y[i];
+    }
+    y[i] = alpha * tmp[i] + beta * y[i];
+  }
+}
+```
+Note that I added pragmas for the interfaces to specify the memory mapping and the AXI-lite interface for the scalar ports. I also added loop trip count pragmas to specify the number of iterations for each loop. This can help the HLS compiler optimize the code for the specific hardware platform.
+
+Also, I didn't add any pragmas for memory optimization as it seems that the code is already optimized for memory access.

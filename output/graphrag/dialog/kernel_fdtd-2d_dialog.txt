@@ -1,0 +1,110 @@
+To optimize the given 2D FDTD kernel for High-Level Synthesis (HLS) using Vitis HLS, we can apply several well-known optimization strategies and pragmas. These aim to improve performance by enabling loop pipelining, loop unrolling, and efficient memory access, while controlling resource usage and keeping compilation time reasonable.
+
+---
+
+### Summary of Relevant Optimization Strategies and Pragmas
+
+1. **Loop Pipelining (`#pragma HLS pipeline`)**  
+   Pipelining loops reduces the initiation interval (II), allowing new loop iterations to start before previous ones finish, thus increasing throughput. Applying pipelining to inner loops or critical loops is a common practice to improve performance.
+
+2. **Loop Unrolling (`#pragma HLS unroll`)**  
+   Unrolling loops duplicates the loop body multiple times, enabling parallel execution of iterations. Partial unrolling can balance between performance gain and resource usage.
+
+3. **Array Partitioning (`#pragma HLS array_partition`)**  
+   Partitioning arrays into smaller memories or registers can increase memory bandwidth and enable parallel access, which is crucial for loops accessing arrays multiple times.
+
+4. **Interface Pragmas**  
+   Specifying interfaces for arrays and arguments can improve data transfer efficiency, but since this is a kernel function, the default interface is usually sufficient unless integrating with external memory.
+
+5. **Loop Tripcount Pragmas (`#pragma HLS loop_tripcount`)**  
+   Providing trip count information helps the tool optimize loops better and estimate performance.
+
+6. **Resource Constraints and Compilation Time**  
+   To keep resource utilization under 80% and compilation time under 1800s, avoid full unrolling of large loops and prefer pipelining with partial unrolling where beneficial.
+
+---
+
+### Applying Pragmas to the Provided Code
+
+- Pipeline the outer time loop `t` to improve throughput across time steps.
+- Pipeline the inner loops over `j` to allow concurrent processing of array elements.
+- Partially unroll the inner loops over `j` to increase parallelism without excessive resource usage.
+- Partition arrays along the dimension accessed in parallel to improve memory bandwidth.
+- Add loop tripcount pragmas to help the tool optimize.
+
+---
+
+### Final Optimized Code with Pragmas
+
+```c
+void kernel_fdtd_2d(int tmax, int nx, int ny, float ex[60][80], float ey[60][80], float hz[60][80], float _fict_[40])
+{
+#pragma HLS INTERFACE m_axi port=ex offset=slave bundle=gmem
+#pragma HLS INTERFACE m_axi port=ey offset=slave bundle=gmem
+#pragma HLS INTERFACE m_axi port=hz offset=slave bundle=gmem
+#pragma HLS INTERFACE m_axi port=_fict_ offset=slave bundle=gmem
+#pragma HLS INTERFACE s_axilite port=tmax bundle=control
+#pragma HLS INTERFACE s_axilite port=nx bundle=control
+#pragma HLS INTERFACE s_axilite port=ny bundle=control
+#pragma HLS INTERFACE s_axilite port=return bundle=control
+
+    // Partition arrays along the second dimension for parallel access
+#pragma HLS array_partition variable=ex complete dim=2
+#pragma HLS array_partition variable=ey complete dim=2
+#pragma HLS array_partition variable=hz complete dim=2
+
+    int t, i, j;
+
+    // Pipeline the time loop to improve throughput
+#pragma HLS pipeline II=1
+
+    for (t = 0; t < 40; t++) {
+        // Pipeline and partially unroll the loop over j for parallelism
+#pragma HLS pipeline II=1
+#pragma HLS unroll factor=4
+
+        for (j = 0; j < 80; j++) {
+            ey[0][j] = _fict_[t];
+        }
+
+        for (i = 1; i < 60; i++) {
+#pragma HLS pipeline II=1
+#pragma HLS unroll factor=4
+            for (j = 0; j < 80; j++) {
+                ey[i][j] = ey[i][j] - 0.5 * (hz[i][j] - hz[i - 1][j]);
+            }
+        }
+
+        for (i = 0; i < 60; i++) {
+#pragma HLS pipeline II=1
+#pragma HLS unroll factor=4
+            for (j = 1; j < 80; j++) {
+                ex[i][j] = ex[i][j] - 0.5 * (hz[i][j] - hz[i][j - 1]);
+            }
+        }
+
+        for (i = 0; i < 59; i++) {
+#pragma HLS pipeline II=1
+#pragma HLS unroll factor=4
+            for (j = 0; j < 79; j++) {
+                hz[i][j] = hz[i][j] - 0.7 * (ex[i][j + 1] - ex[i][j] + ey[i + 1][j] - ey[i][j]);
+            }
+        }
+    }
+}
+```
+
+---
+
+### Explanation
+
+- **Interface Pragmas**: Added AXI master interfaces for arrays and AXI lite for scalar arguments to enable efficient data transfer when integrated into a system.
+- **Array Partitioning**: Complete partitioning along the second dimension (columns) allows parallel access to all elements in a row, which matches the inner loop over `j`.
+- **Loop Pipelining and Unrolling**: The loops over `j` are pipelined with an initiation interval of 1 and partially unrolled by a factor of 4 to balance parallelism and resource usage.
+- **Pipelining the time loop**: The outer loop is pipelined to improve throughput across time steps.
+
+This approach should improve performance significantly while controlling resource usage and compilation time. Further tuning of unroll factors and partitioning can be done based on synthesis reports and resource utilization feedback.
+
+---
+
+This optimization strategy and pragma usage are based on best practices for Vitis HLS and the knowledge base on optimization directives and techniques [Data: OPTIMIZATION DIRECTIVES (213), PRAGMA_HLS_PERFORMANCE (303), HLS OPTIMIZATION TECHNIQUES (4337), DUT_CPP (5707)].
