@@ -19,6 +19,7 @@ from graphrag.query.structured_search.local_search.mixed_context import (
 )
 from graphrag.query.structured_search.local_search.search import LocalSearch
 from graphrag.vector_stores.lancedb import LanceDBVectorStore
+from graphrag.config.models.vector_store_schema_config import VectorStoreSchemaConfig
 
 INPUT_DIR = "graphrag/output"
 LANCEDB_URI = f"{INPUT_DIR}/lancedb"
@@ -29,7 +30,7 @@ COMMUNITY_TABLE = "communities"
 RELATIONSHIP_TABLE = "relationships"
 COVARIATE_TABLE = "covariates"
 TEXT_UNIT_TABLE = "text_units"
-COMMUNITY_LEVEL = 2
+COMMUNITY_LEVEL = 1 # was 2
 
 # read nodes table to get community and degree data
 entity_df = pd.read_parquet(f"{INPUT_DIR}/{ENTITY_TABLE}.parquet")
@@ -39,10 +40,21 @@ entities = read_indexer_entities(entity_df, community_df, COMMUNITY_LEVEL)
 
 # load description embeddings to an in-memory lancedb vectorstore
 # to connect to a remote db, specify url and port values.
-description_embedding_store = LanceDBVectorStore(
-    collection_name="default-entity-description",
+vector_store_config = VectorStoreSchemaConfig(
+    id_field="id",
+    vector_field="vector", 
+    text_field="text",
+    attributes_field="attributes",
+    vector_size=1536,
+    index_name="default-entity-description",
 )
-description_embedding_store.connect(db_uri=LANCEDB_URI)
+description_embedding_store = LanceDBVectorStore(
+    vector_store_schema_config=vector_store_config,
+)
+description_embedding_store.connect(
+    collection_name="default-entity-description",
+    db_uri=LANCEDB_URI,
+)
 
 print(f"Entity count: {len(entity_df)}")
 entity_df.head()
@@ -76,13 +88,14 @@ text_unit_df.head()
 from graphrag.config.enums import ModelType
 from graphrag.config.models.language_model_config import LanguageModelConfig
 from graphrag.language_model.manager import ModelManager
+from graphrag.tokenizer.tiktoken_tokenizer import TiktokenTokenizer
 
 from dotenv import load_dotenv
 
 load_dotenv(dotenv_path="graphrag/.env")
 
 api_key = os.environ["GRAPHRAG_API_KEY"]
-llm_model = os.environ["GRAPHRAG_LLM_MODEL"]
+llm_model = os.environ["GRAPHRAG_QUERY_LLM_MODEL"]
 embedding_model = os.environ["GRAPHRAG_EMBEDDING_MODEL"]
 
 chat_config = LanguageModelConfig(
@@ -98,6 +111,7 @@ chat_model = ModelManager().get_or_create_chat_model(
 )
 
 token_encoder = tiktoken.encoding_for_model(llm_model)
+tokenizer = TiktokenTokenizer(encoding_name="cl100k_base")
 
 embedding_config = LanguageModelConfig(
     api_key=api_key,
@@ -122,7 +136,6 @@ context_builder = LocalSearchMixedContext(
     entity_text_embeddings=description_embedding_store,
     embedding_vectorstore_key=EntityVectorStoreKey.ID,  # if the vectorstore uses entity title as ids, set this to EntityVectorStoreKey.TITLE
     text_embedder=text_embedder,
-    token_encoder=token_encoder,
 )
 
 
@@ -135,10 +148,10 @@ local_context_params = {
     "top_k_relationships": 10,
     "include_entity_rank": True,
     "include_relationship_weight": True,
-    "include_community_rank": False,
-    "return_candidate_context": False,
+    "include_community_rank": True,
+    "return_candidate_context": True,
     "embedding_vectorstore_key": EntityVectorStoreKey.ID,  # set this to EntityVectorStoreKey.TITLE if the vectorstore uses entity title as ids
-    "max_tokens": 12_000,  # change this based on the token limit you have on your model (if you are using a model with 8k limit, a good setting could be 5000)
+    "max_tokens": 20_000,  # change this based on the token limit you have on your model (if you are using a model with 8k limit, a good setting could be 5000)
 }
 
 model_params = {
@@ -149,14 +162,14 @@ model_params = {
 search_engine = LocalSearch(
     model=chat_model,
     context_builder=context_builder,
-    token_encoder=token_encoder,
+    tokenizer=tokenizer,
     model_params=model_params,
     context_builder_params=local_context_params,
     response_type="multiple paragraphs",  # free form text describing the response type and format, can be anything, e.g. prioritized list, single paragraph, multiple paragraphs, multiple-page report
 )
 
 async def main():
-    output_dir = Path("output/graphrag")
+    output_dir = Path("output/graphrag2") #change this
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     Path(f"{output_dir}/code").mkdir(parents=True, exist_ok=True)
     Path(f"{output_dir}/dialog").mkdir(parents=True, exist_ok=True)
@@ -174,7 +187,15 @@ async def main():
 
     prompt = """
       You are an expert in High-Level Synthesis (HLS) optimization. Given the following C code, your objective is to optimize the performance while keeping the resource utilization under 80% and
-      the compilation time under 1800s. First, retrieve relevant pragma usage examples and summarize optimization strategies from the knowledge base. Then, insert the appropriate pragmas directly 
+      the compilation time under 1800s. Here are the specific resource constraints for the target FPGA device (Xilinx Alveo U250):
+
+      LUTs: 1,341K (i.e. 1,341,000)
+      Registers (Flip-Flops / FFs): 2,749K (i.e. 2,749,000)
+      DSP slices: 11,508
+      Block RAM (36 Kb): 2,000 (i.e. 2,000 blocks of 36 Kb)
+      UltraRAM (288 Kb): 1,280 (blocks)
+      
+      First, retrieve relevant pragma usage examples and summarize optimization strategies from the knowledge base. Then, insert the appropriate pragmas directly 
       into the C code. Return the final code with pragmas.
     """
 
@@ -190,6 +211,53 @@ async def main():
 
         result = await search_engine.search(prompt + "\n\n" + kernel_content)
         # print(result.response)
+        retrieved_context = result.context_data
+
+        # Ensure context directory exists
+        context_dir = f"{output_dir}/context"
+        Path(context_dir).mkdir(parents=True, exist_ok=True)
+
+        # Check text units (likely contains raw code/pragmas/examples from docs)
+        text_units_df = retrieved_context.get("text_units")
+        if text_units_df is not None and not text_units_df.empty:
+            print(f"Retrieved text units for {kernel_name}:")
+            print(text_units_df[['id', 'text', 'entity_ids', 'relationship_ids']].head())  # Focus on key columns
+            text_units_df.to_csv(f"{context_dir}/{kernel_name}_text_units.csv", index=False)
+        else:
+            print("No text units retrieved.")
+
+        # Check entities (may include pragma descriptions/examples)
+        entities_df = retrieved_context.get("entities")
+        if entities_df is not None and not entities_df.empty:
+            print(f"Retrieved entities for {kernel_name}:")
+            print("Available columns:", entities_df.columns.tolist())
+            print(entities_df.head())  # Print the full head to avoid column-specific errors
+            entities_df.to_csv(f"{context_dir}/{kernel_name}_entities.csv", index=False)
+            # Save pragma-specific descriptions to a text file
+            pragma_examples = entities_df[entities_df['description'].str.contains('PRAGMA', case=False, na=False)]['description'].tolist()
+            with open(f"{context_dir}/{kernel_name}_pragma_examples.txt", 'w', encoding='utf-8') as f:
+                f.write('\n\n'.join(pragma_examples))
+        else:
+            print("No entities retrieved.")
+
+        # Check relationships (connections between entities, possibly linking to examples)
+        relationships_df = retrieved_context.get("relationships")
+        if relationships_df is not None and not relationships_df.empty:
+            print(f"Retrieved relationships for {kernel_name}:")
+            print(relationships_df[['source', 'target', 'description', 'weight']].head())
+            relationships_df.to_csv(f"{context_dir}/{kernel_name}_relationships.csv", index=False)
+        else:
+            print("No relationships retrieved.")
+
+        # Reports (already checking, but for completeness)
+        reports_df = retrieved_context.get("reports")
+        if reports_df is not None and not reports_df.empty:
+            print(f"Retrieved reports for {kernel_name}:")
+            print(reports_df[['community_id', 'summary', 'full_content']].head())
+            reports_df.to_csv(f"{context_dir}/{kernel_name}_reports.csv", index=False)
+        else:
+            print("No reports retrieved.")
+
 
         output_file = f"{output_dir}/code/{kernel_name}.c"
         with open(output_file, 'w') as f:

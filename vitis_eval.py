@@ -7,7 +7,7 @@ import time
 import shutil
 from pathlib import Path
 
-method = "graphrag"
+method = "graphrag2"
 
 # config
 VITIS_HLS_CMD = "/tools/Xilinx/Vitis_HLS/2023.1/bin/vitis_hls"
@@ -17,7 +17,7 @@ TIMEOUT = 1800
 
 # Directories
 WORKSPACE_ROOT = "/home/richardqfeng/RALAD/git/RALAD"
-FILES_DIR = os.path.join(WORKSPACE_ROOT, "output", "llama", method, "code")
+FILES_DIR = os.path.join(WORKSPACE_ROOT, "output", "graphrag2", "code")
 RESULTS_DIR = os.path.join(WORKSPACE_ROOT, "synthesis_results")
 TEMP_DIR = os.path.join(RESULTS_DIR, "temp")
 

@@ -67,7 +67,7 @@ def process_file(file_path):
 
 def main():
     script_dir = Path(__file__).parent
-    input_dir = script_dir / "output" / "llama" / "graphrag" / "code"
+    input_dir = script_dir / "output" / "graphrag2" / "code"
 
     if not input_dir.exists():
         print(f"Error: Directory {input_dir} not found!")
